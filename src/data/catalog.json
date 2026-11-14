@@ -1,0 +1,87 @@
+{
+  "lessons": [
+    {
+      "id": "mod",
+      "title": "Modular arithmetic",
+      "blurb": "Remainders are the clock arithmetic behind Caesar, Diffie–Hellman and RSA."
+    },
+    {
+      "id": "primes",
+      "title": "Primes and gcd",
+      "blurb": "Primes and the greatest common divisor decide when a number has an inverse."
+    },
+    {
+      "id": "xor",
+      "title": "Bits and XOR",
+      "blurb": "XOR is the addition the one-time pad and most of secure computation use."
+    }
+  ],
+  "paths": [
+    {
+      "id": "foundations",
+      "title": "Foundations",
+      "blurb": "Modulo, primes and XOR. Every other path starts from these.",
+      "color": "#5C6BC0",
+      "steps": [
+        { "id": "mod", "kind": "lesson" },
+        { "id": "primes", "kind": "lesson" },
+        { "id": "xor", "kind": "lesson" }
+      ]
+    },
+    {
+      "id": "ciphers",
+      "title": "Classical ciphers",
+      "blurb": "Remainders and XOR, then shift ciphers and the one-time pad.",
+      "color": "#C62828",
+      "steps": [
+        { "id": "mod", "kind": "lesson" },
+        { "id": "caesar", "kind": "topic" },
+        { "id": "freqan", "kind": "topic" },
+        { "id": "vigenere", "kind": "topic" },
+        { "id": "xor", "kind": "lesson" },
+        { "id": "otp", "kind": "topic" }
+      ]
+    },
+    {
+      "id": "public-key",
+      "title": "Public-key cryptography",
+      "blurb": "Modular arithmetic and primes, then Diffie–Hellman, RSA and elliptic curves.",
+      "color": "#1E88E5",
+      "steps": [
+        { "id": "mod", "kind": "lesson" },
+        { "id": "primes", "kind": "lesson" },
+        { "id": "dh", "kind": "topic" },
+        { "id": "rsa", "kind": "topic" },
+        { "id": "ecc", "kind": "topic" }
+      ]
+    },
+    {
+      "id": "oblivious",
+      "title": "Oblivious computation",
+      "blurb": "XOR, then secret sharing, commitments, oblivious transfer and zero knowledge.",
+      "color": "#00897B",
+      "steps": [
+        { "id": "xor", "kind": "lesson" },
+        { "id": "ss", "kind": "topic" },
+        { "id": "commit", "kind": "topic" },
+        { "id": "ot", "kind": "topic" },
+        { "id": "otext", "kind": "topic" },
+        { "id": "gc", "kind": "topic" },
+        { "id": "zk", "kind": "topic" }
+      ]
+    },
+    {
+      "id": "sets",
+      "title": "Private sets",
+      "blurb": "Hashing and oblivious PRFs, then private set intersection and union.",
+      "color": "#EF6C00",
+      "steps": [
+        { "id": "hash", "kind": "topic" },
+        { "id": "cuckoo", "kind": "topic" },
+        { "id": "oprf", "kind": "topic" },
+        { "id": "psi", "kind": "topic" },
+        { "id": "psu", "kind": "topic" }
+      ]
+    }
+  ]
+}
