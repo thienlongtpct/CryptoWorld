@@ -4,8 +4,11 @@ import { AppProvider } from './state';
 import { AccountProvider } from './account';
 import { App } from './App';
 import { Signatures } from './components/Signatures';
+import { setBitFavicon } from './bit/favicon';
 import './styles/global.css';
 import './styles/vis.css';
+
+setBitFavicon();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
