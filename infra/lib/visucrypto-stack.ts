@@ -167,10 +167,16 @@ export class VisuCryptoStack extends cdk.Stack {
         roleName: 'visucrypto-github-deploy',
         description: 'Assumed by GitHub Actions on main to deliver VisuCrypto.',
         maxSessionDuration: cdk.Duration.hours(1),
+        // GitHub may issue either repo:OWNER/NAME:ref:... or repo:OWNER@id/NAME@id:ref:...
         assumedBy: new iam.WebIdentityPrincipal(provider.openIdConnectProviderArn, {
           StringEquals: {
             'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-            'token.actions.githubusercontent.com:sub': `repo:${repo}:ref:refs/heads/main`,
+          },
+          StringLike: {
+            'token.actions.githubusercontent.com:sub': [
+              `repo:${repo}:ref:refs/heads/main`,
+              `repo:${repo.split('/')[0]}@*/${repo.split('/')[1]}@*:ref:refs/heads/main`,
+            ],
           },
         }),
       });
