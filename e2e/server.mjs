@@ -92,7 +92,7 @@ function runPython(code) {
   const file = join(dir, 'learner.py');
   writeFileSync(file, code, 'utf8');
   return new Promise(resolve => {
-    const child = spawn('python3', [file], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('python3', [file], { stdio: ['ignore', 'pipe', 'pipe'], cwd: dir, env: { PATH: process.env.PATH || '/usr/bin:/bin', LANG: 'C.UTF-8' } });
     let stdout = '';
     let stderr = '';
     const timer = setTimeout(() => child.kill('SIGKILL'), 10_000);

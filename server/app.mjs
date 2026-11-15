@@ -19,6 +19,11 @@ import { buildSkillsRecord } from './skills.mjs';
 const scrypt = promisify(scryptCb);
 const JSON_MAX = 4096;
 const LAB_JSON_MAX = LAB_CODE_MAX + 2048;
+/** Requests per minute, per instance. */
+const REGISTER_PER_MINUTE = 5;
+const LOGIN_PER_MINUTE = 20;
+const LOGIN_PER_NAME_PER_MINUTE = 8;
+const TUTOR_PER_MINUTE = 10;
 
 function cookie(token, secure) {
   const flags = `HttpOnly; SameSite=Lax; Path=/${secure ? '; Secure' : ''}`;
@@ -93,8 +98,18 @@ export function createHandler({
   const submits = new Map();
   const newsInflight = new Map();
   const walks = new Map();
+  // Sign-up, login and tutor limits. Counted per instance: a Lambda fleet allows a multiple of
+  // these, so API Gateway also throttles the whole API.
+  const auth = new Map();
+  const tutor = new Map();
   function limited(bucket, userId, max) {
     const nowMs = now();
+    // Drop stale keys now and then so one address per request cannot grow the map forever.
+    if (bucket.size > 5_000) {
+      for (const [key, times] of bucket) {
+        if (!times.some(time => nowMs - time < 60_000)) bucket.delete(key);
+      }
+    }
     const prev = (bucket.get(userId) || []).filter(time => nowMs - time < 60_000);
     if (prev.length >= max) {
       bucket.set(userId, prev);
@@ -126,6 +141,16 @@ export function createHandler({
         const nameError = checkName(username);
         const passError = checkPassword(payload.password);
         if (nameError || passError) return send(400, { error: nameError || passError });
+
+        const ip = typeof req.ip === 'string' ? req.ip : '';
+        const slow = { error: 'Too many attempts. Wait a minute and try again.' };
+        if (path === '/api/register') {
+          if (ip && limited(auth, `register:${ip}`, REGISTER_PER_MINUTE)) return send(429, slow);
+        } else {
+          // Per address and per account name, so guessing one password from many addresses is slowed too.
+          if (ip && limited(auth, `login:${ip}`, LOGIN_PER_MINUTE)) return send(429, slow);
+          if (limited(auth, `login-name:${username.toLowerCase()}`, LOGIN_PER_NAME_PER_MINUTE)) return send(429, slow);
+        }
 
         if (path === '/api/register') {
           const salt = randomBytes(16).toString('hex');
@@ -160,6 +185,9 @@ export function createHandler({
       if (method === 'POST' && path === '/api/npc') {
         const user = await store.sessionUser(readCookie(headers));
         if (!user) return send(401, { error: 'Log in to ask a character a question.' });
+        if (limited(tutor, user.id, TUTOR_PER_MINUTE)) {
+          return send(429, { error: 'The tutors need a breather. Wait a minute and ask again.' });
+        }
         const payload = readJson(body);
         const topics = tutorTopics(payload ?? {});
         const answered = await answerNpc({

@@ -79,12 +79,15 @@ const server = http.createServer(async (req, res) => {
     path: url.pathname,
     headers: req.headers,
     body: Buffer.concat(chunks),
+    ip: req.socket.remoteAddress || '',
   });
   res.writeHead(result.status, result.headers);
   res.end(JSON.stringify(result.body));
 });
 
-server.listen(port, () => {
+// Loopback only by default: with LAB_EXECUTOR=local, any account here can run Python on this
+// machine. Set HOST=0.0.0.0 only on a network you trust.
+server.listen(port, process.env.HOST || '127.0.0.1', () => {
   if (store.kind !== 'tigerdata' && !existsSync(dbPath)) saveDb(dbPath, emptyDb());
   const mode = labRunner ? 'local-python' : maritime.configured ? 'maritime+inline-queue' : 'lab-disabled';
   const db = store.kind === 'tigerdata' ? 'tigerdata' : 'json-file';

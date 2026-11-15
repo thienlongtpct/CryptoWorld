@@ -23,6 +23,20 @@ export function apigwResponse(result) {
   };
 }
 
+/**
+ * The learner's address, for rate limits. Behind CloudFront, API Gateway's sourceIp is a
+ * CloudFront edge shared by many viewers, and CloudFront appends the real viewer address to
+ * X-Forwarded-For. Entries before it come from the client and can be forged, so take the last
+ * entry that is not the edge address itself.
+ */
+export function clientIp(event) {
+  const source = event.requestContext?.http?.sourceIp || '';
+  const raw = event.headers?.['x-forwarded-for'] || event.headers?.['X-Forwarded-For'] || '';
+  const hops = String(raw).split(',').map(hop => hop.trim()).filter(Boolean);
+  while (hops.length && hops[hops.length - 1] === source) hops.pop();
+  return hops[hops.length - 1] || source;
+}
+
 /** Turn an API Gateway HTTP API event into the request the account handler expects. */
 export function apigwRequest(event) {
   const rawBody = event.body
@@ -34,6 +48,7 @@ export function apigwRequest(event) {
     path: event.rawPath,
     headers: { ...(event.headers || {}), cookie: event.cookies?.length ? event.cookies.join('; ') : headerCookie },
     body: rawBody,
+    ip: clientIp(event),
   };
 }
 

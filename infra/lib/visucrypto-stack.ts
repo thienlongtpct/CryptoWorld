@@ -225,6 +225,12 @@ export class VisuCryptoStack extends cdk.Stack {
       methods: [apigwv2.HttpMethod.ANY],
       integration: new HttpLambdaIntegration('Accounts', api),
     });
+    // Whole-API throttle. The handler's own per-user limits are per Lambda instance, so this caps
+    // what a burst of new accounts or a script can spend on Gemini, TinyFish and Maritime.
+    const defaultStage = httpApi.defaultStage?.node.defaultChild as apigwv2.CfnStage | undefined;
+    if (defaultStage) {
+      defaultStage.defaultRouteSettings = { throttlingRateLimit: 25, throttlingBurstLimit: 50 };
+    }
 
     const site = new s3.Bucket(this, 'Site', {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
