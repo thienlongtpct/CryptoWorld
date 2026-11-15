@@ -79,7 +79,7 @@ The **Everything / Alice sees / Bob sees** switch is in the header and on every 
 
 ## Development
 
-Requires **Node.js 16 or later** and npm. (The project pins Vite 4 so it runs on Node 16; on Node 18+ you can upgrade to Vite 5.)
+Requires **Node.js 22** and npm. `npm test` runs the TypeScript tests with Node's type stripper, and the delivery pipeline uses the same version. The dev server and `npm run build` also run on Node 18 or later. The project pins Vite 4, so an older Node can still build the site.
 
 ```bash
 npm install
@@ -96,11 +96,13 @@ Opens a hot-reloading dev server at `http://localhost:8765/` and the account ser
 | `npm run dev` | Development server with hot reload, plus the account server |
 | `npm run server` | Account server only (registration and learning progress) |
 | `npm run typecheck` | TypeScript check only |
+| `npm test` | Cryptography checks, the account API, and the catalog ids that API accepts |
+| `npm run ci` | Typecheck, tests, production build, and the self-contained page check |
 | `npm run build` | Type-check, then build `dist/index.html`: one file with all JS and CSS inlined |
 | `npm run preview` | Serve the built `dist/` locally |
 | `npm run artifact` | Build, then write `dist/artifact.html` (the same page without `<html>/<head>/<body>` wrappers) for publishing as a Claude artifact |
 
-`dist/index.html` works on its own: open it from disk or upload it to any static host (GitHub Pages, Netlify, S3, a university web space). It loads nothing except Google Fonts, and falls back to system fonts without them.
+`dist/index.html` works on its own: open it from disk or upload it to any static host (GitHub Pages, Netlify, S3, a university web space). It loads nothing except Google Fonts and the official MLH trust badge, which MLH hosts. It falls back to system fonts without the fonts.
 
 ### Project layout
 
@@ -141,6 +143,11 @@ src/
   styles/global.css       Site styling: Minimal UI tokens at the top (:root), then components
   styles/vis.css          Visualization pages and home grid (VisuAlgo-style colours at the top)
 scripts/make-artifact.mjs Builds dist/artifact.html
+scripts/check-dist.mjs    Fails the build unless dist/index.html is one self-contained page
+scripts/smoke.mjs         Requests the live site and /api/health after an AWS deploy
+server/                   Account API. index.mjs is the local server; lambda.mjs is the AWS entry
+infra/                    AWS stack: CloudFront, private S3, Lambda, DynamoDB, GitHub role
+.github/workflows/pipeline.yml  Checks on every pull request, delivery on main
 legacy/                   The previous vanilla-JS version, kept for reference only
 ```
 
@@ -206,6 +213,72 @@ export function MyVis() {
 **Add a paper to the PSI or PSU library.** Add to `PSI_PAPERS` or `PSU_PAPERS` in `src/data/libraries.ts`. PSU papers may include `small` (runtimes at n = 2⁴, 2⁶, 2⁸, 2¹⁰ on LAN / WAN1 / WAN2 plus communication) and `big` (runtime and communication at n = 2²⁰). They then appear in the benchmark chart, the table and the chooser automatically.
 
 **Change colours or fonts.** Edit the tokens at the top of `src/styles/global.css` (`--accent`, `--alice-main`, `--bob-main`, `--f-display`, `--f-body`, …).
+
+---
+
+## From a change to AWS
+
+`.github/workflows/pipeline.yml` is the path from a change to the running site.
+
+On every pull request, and on every push to `main`, the check job:
+
+1. Installs the locked dependencies.
+2. Type-checks the site.
+3. Runs the tests: cryptography helpers, the account API in memory, on disk, and over HTTP, the DynamoDB store against an in-memory table, and the lesson ids the API accepts.
+4. Builds `dist/index.html` and checks that the page is one self-contained file.
+5. Audits the dependencies that ship with the site and the account API, and the AWS toolchain, and fails on a high or critical advisory. Vite stays a dev dependency; its dev-server advisory is not part of the delivered page.
+6. Type-checks and synthesizes the AWS template in `infra/`.
+
+The same job uploads `dist/` as a build artifact. A push to `main` delivers that artifact when the repository variable `AWS_DEPLOY_ROLE_ARN` is set. Until then the delivery job stays skipped and the checks still run. Run `npm run ci` locally before you push; it is the same typecheck, test, build, and page check.
+
+```
+browser
+  |
+  |  https://<distribution>/
+  v
+CloudFront
+  |-- /        private S3 bucket (dist/index.html)
+  \-- /api/*   API Gateway -> Lambda -> DynamoDB
+```
+
+The site and the account API share one hostname, so the session cookie stays on the same origin the dev server already uses for `/api`. Local accounts stay in `data/accounts.json`. Accounts created on AWS are stored in DynamoDB. The session cookie is marked `Secure` in AWS, where CloudFront serves the site over HTTPS.
+
+The running pieces are a private S3 bucket, a CloudFront distribution, an on-demand Lambda function, and an on-demand DynamoDB table.
+
+### Turn delivery on
+
+You need an AWS account, the AWS CLI, and credentials that can create the stack the first time. Later deploys from GitHub assume a role with OpenID Connect, so the repository holds no access key.
+
+1. Build the site and create the stack. CloudFront is global; the region you pick is where the API, the table, and the bucket live.
+
+```bash
+npm ci
+npm run build
+cd infra
+npm ci
+npx cdk bootstrap aws://ACCOUNT/REGION
+npx cdk deploy --require-approval never -c githubRepo=OWNER/NAME
+```
+
+2. Copy the `DeployRoleArn` output. Trust that role from the CDK toolkit, then add the repository variables under Settings → Secrets and variables → Actions → Variables.
+
+```bash
+npx cdk bootstrap aws://ACCOUNT/REGION \
+  --trust DeployRoleArn \
+  --cloudformation-execution-policies arn:aws:iam::aws:policy/AdministratorAccess
+```
+
+| Variable | Value |
+|---|---|
+| `AWS_DEPLOY_ROLE_ARN` | The `DeployRoleArn` output |
+| `AWS_REGION` | The region you bootstrapped. The workflow uses `us-west-2` when this is empty |
+| `AWS_OIDC_PROVIDER_ARN` | Only when the account already has a GitHub OpenID provider. Pass the same ARN as `-c githubOidcProviderArn=...` on the first deploy |
+
+3. Push to `main`. The delivery job deploys the stack, uploads the tested page, and requests the site and `/api/health`.
+
+The CloudFormation execution role from that bootstrap can administer the account. That is the role CDK uses to create the bucket, the distribution, the function, and the table. The GitHub role can only assume those CDK toolkit roles, and only from a workflow running on `main`.
+
+Destroying the stack leaves the account table and the site bucket in the account. The table holds password hashes and learning progress.
 
 ---
 

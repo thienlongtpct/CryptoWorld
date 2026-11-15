@@ -14,6 +14,7 @@ export interface Topic {
   entry?: string;        // dictionary entry shown in the e-Lecture
   section?: string;      // page section (data/pages.ts) shown in the e-Lecture
   animated: boolean;     // has a step-by-step trace with the playback bar
+  eyes?: boolean;        // the picture hides a value from Alice or from Bob
 }
 
 const F = 'Foundations', O = 'Oblivious primitives', M = 'Secure computation', S = 'Set operations', C = 'Classical ciphers', D = 'Modern primitives';
@@ -23,26 +24,26 @@ const t = (id: string, title: string, abbr: string, group: string, thumb: Thumb,
 
 export const TOPICS: Topic[] = [
   t('ss', 'Secret Sharing', 'SS', F, 'points', ['shamir', 'threshold', 'mpc'], 'Split a secret into shares; any t rebuild it, fewer reveal nothing.', true),
-  t('commit', 'Commitment', 'COM', F, 'lock', ['hash', 'binding', 'hiding'], 'Seal a value now, open it later, and prove you could not change it.', true),
-  t('dh', 'Diffie–Hellman', 'DH', F, 'parties', ['key exchange', 'public key'], 'Two strangers agree on a shared key over a public channel.', true),
-  t('he', 'Homomorphic Encryption', 'HE', F, 'arrows', ['paillier', 'public key'], 'Add numbers while they stay encrypted.', true),
-  t('zk', 'Zero-Knowledge Proof', 'ZK', F, 'cave', ['proof', 'interactive'], 'Convince a verifier without revealing the secret.', true),
+  t('commit', 'Commitment', 'COM', F, 'lock', ['hash', 'binding', 'hiding'], 'Seal a value now, open it later, and prove you could not change it.', true, { eyes: true }),
+  t('dh', 'Diffie–Hellman', 'DH', F, 'parties', ['key exchange', 'public key'], 'Two strangers agree on a shared key over a public channel.', true, { eyes: true }),
+  t('he', 'Homomorphic Encryption', 'HE', F, 'arrows', ['paillier', 'public key'], 'Add numbers while they stay encrypted.', true, { eyes: true }),
+  t('zk', 'Zero-Knowledge Proof', 'ZK', F, 'cave', ['proof', 'interactive'], 'Convince a verifier without revealing the secret.', true, { eyes: true }),
 
-  t('ot', 'Oblivious Transfer', 'OT', O, 'parties', ['1-out-of-2', 'mpc', 'base ot'], 'The receiver gets one of two messages; the sender never learns which.', true),
-  t('otext', 'OT Extension', 'IKNP', O, 'matrix', ['iknp', 'symmetric key'], 'Turn a few base OTs into many by transposing a bit matrix.', true),
+  t('ot', 'Oblivious Transfer', 'OT', O, 'parties', ['1-out-of-2', 'mpc', 'base ot'], 'The receiver gets one of two messages; the sender never learns which.', true, { eyes: true }),
+  t('otext', 'OT Extension', 'IKNP', O, 'matrix', ['iknp', 'symmetric key'], 'Turn a few base OTs into many by transposing a bit matrix.', true, { eyes: true }),
   t('pcg', 'Silent OT / PCG', 'PCG', O, 'bars', ['vole', 'lpn', 'communication'], 'How much communication a million OTs cost, three ways.', false),
-  t('oprf', 'Oblivious PRF', 'OPRF', O, 'parties', ['blinding', 'psi', 'opaque'], 'Evaluate a keyed function on your input without showing it.', true),
-  t('opprf', 'Programmable OPRF', 'OPPRF', O, 'table', ['okvs', 'circuit-psi'], 'An OPRF whose outputs the server fixes at chosen points.', true),
+  t('oprf', 'Oblivious PRF', 'OPRF', O, 'parties', ['blinding', 'psi', 'opaque'], 'Evaluate a keyed function on your input without showing it.', true, { eyes: true }),
+  t('opprf', 'Programmable OPRF', 'OPPRF', O, 'table', ['okvs', 'circuit-psi'], 'An OPRF whose outputs the server fixes at chosen points.', true, { eyes: true }),
   t('okvs', 'Oblivious Key-Value Store', 'OKVS', O, 'squares', ['data structure', 'linear algebra'], 'Encode key–value pairs so that inserted keys look like any other.', true),
   t('vole', 'Vector OLE', 'VOLE', O, 'line', ['correlation', 'silent'], 'Points on a line whose slope only one party knows.', false),
 
-  t('gc', 'Garbled Circuits', 'GC', M, 'gate', ['yao', 'mpc'], 'Evaluate an encrypted gate by opening exactly one table row.', true),
+  t('gc', 'Garbled Circuits', 'GC', M, 'gate', ['yao', 'mpc'], 'Evaluate an encrypted gate by opening exactly one table row.', true, { eyes: true }),
   t('cuckoo', 'Cuckoo Hashing', 'CUCKOO', M, 'bins', ['hashing', 'psi'], 'Insert items that kick each other between two candidate bins.', true),
   t('shuffle', 'Oblivious Shuffle', 'SHUF', M, 'arrows', ['permute + share', 'psu'], 'Permute a list so nobody links positions to items.', false),
 
-  t('psi', 'Private Set Intersection', 'PSI', S, 'venn', ['dh-psi', 'oprf', 'vole', 'circuit'], 'Five PSI protocols on the same two sets, step by step.', true),
-  t('psu', 'Private Set Union', 'PSU', S, 'venn', ['rpmt', 'shuffle', 'ot'], 'Membership test plus OT, with and without a shuffle.', true),
-  t('psufw', 'PSU Frameworks & Aborts', 'PSU-FW', S, 'table', ['rpmt', 'mcrg', 'polynomial', 'aon'], 'RPMT, MCRG and polynomial PSU, and what leaks if the run stops early.', true, { entry: 'mcrg', section: 'psu-fw' }),
+  t('psi', 'Private Set Intersection', 'PSI', S, 'venn', ['dh-psi', 'oprf', 'vole', 'circuit'], 'Five PSI protocols on the same two sets, step by step.', true, { eyes: true }),
+  t('psu', 'Private Set Union', 'PSU', S, 'venn', ['rpmt', 'shuffle', 'ot'], 'Membership test plus OT, with and without a shuffle.', true, { eyes: true }),
+  t('psufw', 'PSU Frameworks & Aborts', 'PSU-FW', S, 'table', ['rpmt', 'mcrg', 'polynomial', 'aon'], 'RPMT, MCRG and polynomial PSU, and what leaks if the run stops early.', true, { entry: 'mcrg', section: 'psu-fw', eyes: true }),
   t('aon', 'All-or-Nothing Output', 'AON', S, 'squares', ['incomplete execution', 'compiler'], 'Drop any message atom and the receiver learns nothing.', false, { section: 'psu-aon' }),
   t('variants', 'PSI Variants', 'VAR', S, 'venn', ['psi-ca', 'psi-sum', 'labeled'], 'What each PSI-style functionality reveals for the same sets.', false),
 
@@ -54,8 +55,8 @@ export const TOPICS: Topic[] = [
 
   t('blockcipher', 'Block Cipher Avalanche', 'BLOCK', D, 'matrix', ['spn', 'aes', 'diffusion'], 'Flip one bit and watch it spread round by round.', true, { section: 'mo-block' }),
   t('modes', 'Modes of Operation', 'MODES', D, 'pixels', ['ecb', 'cbc', 'ctr'], 'Encrypt a picture with ECB, CBC and CTR, block by block.', true, { entry: 'blockcipher', section: 'mo-modes' }),
-  t('hash', 'Hash Functions', 'SHA', D, 'squares', ['sha-256', 'avalanche'], 'Change one character and about half the digest flips.', false, { section: 'mo-hash' }),
-  t('rsa', 'RSA', 'RSA', D, 'lock', ['public key', 'signature'], 'Key generation, encryption, decryption and signatures.', true, { section: 'mo-rsa' }),
+  t('hash', 'Hash Functions', 'SHA', D, 'squares', ['sha-256', 'avalanche'], 'Change one character, or one input bit, and about half the digest flips.', true, { section: 'mo-hash' }),
+  t('rsa', 'RSA', 'RSA', D, 'lock', ['public key', 'signature'], 'Key generation, encryption, decryption and signatures.', true, { section: 'mo-rsa', eyes: true }),
   t('ecc', 'Elliptic Curves', 'ECC', D, 'curve', ['point addition', 'discrete log'], 'Add points on a curve and walk the multiples of P.', true, { section: 'mo-ecc' }),
 ];
 

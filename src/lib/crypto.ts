@@ -73,6 +73,44 @@ export const decStr = (bs: number[], key: string) =>
   bs.map((b, i) => { const c = b ^ (h32(key + ':' + i) & 0xff); return c >= 32 && c < 127 ? String.fromCharCode(c) : '·'; }).join('');
 
 export const parseSet = (s: string) => [...new Set(s.split(/[,\n]/).map(x => x.trim().toLowerCase()).filter(Boolean))].slice(0, 12);
+
+/** What a set box silently changed: duplicates are kept once, and only 12 items are used. */
+export function setInputNotes(raw: string): string {
+  const parts = raw.split(/[,\n]/).map(x => x.trim().toLowerCase()).filter(Boolean);
+  const notes: string[] = [];
+  if (parts.length > new Set(parts).size) notes.push('Repeated items are kept once.');
+  if (new Set(parts).size > 12) notes.push('Only the first 12 distinct items are used.');
+  return notes.join(' ');
+}
+
+/** Number of bits that differ between two byte strings. */
+export function differingBits(a: Uint8Array, b: Uint8Array): number {
+  const n = Math.max(a.length, b.length);
+  let d = 0;
+  for (let i = 0; i < n; i++) {
+    let x = (a[i] ?? 0) ^ (b[i] ?? 0);
+    while (x) { d += x & 1; x >>>= 1; }
+  }
+  return d;
+}
+
+export const utf8 = (s: string) => new TextEncoder().encode(s);
+
+/** Flip exactly one bit of the UTF-8 encoding. Null when the text has no bytes or the index is not a whole number. */
+export function flipUtf8Bit(text: string, bit: number): Uint8Array | null {
+  const src = utf8(text);
+  if (!src.length || !Number.isInteger(bit)) return null;
+  const out = new Uint8Array(src);
+  const n = out.length * 8;
+  const i = ((bit % n) + n) % n;
+  out[i >> 3] ^= 1 << (7 - (i & 7));
+  return out;
+}
+
+/** Secret exponent for the educational subgroup of squares mod 1019 (order 509). */
+export function dhExponent(n: number): number | null {
+  return Number.isInteger(n) && n >= 1 && n <= Q - 1 ? n : null;
+}
 export const short = (n: string | number) => hex(h32('t' + n), 6);
 
 export function fmtBytes(b: number): string {

@@ -6,6 +6,7 @@ export function Lesson({ id }: { id: string }) {
   const lesson = LESSON_BY_ID[id];
   const { user, progress, openAuth, track } = useAccount();
   const [local, setLocal] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'error'>('idle');
   const correct = local || progress[id] === 'done';
 
   useEffect(() => { void track(id, 'seen'); }, [id, track]);
@@ -16,21 +17,25 @@ export function Lesson({ id }: { id: string }) {
   async function finish() {
     setLocal(true);
     if (!user) return;
-    await track(id, 'done');
+    setSaveState('saving');
+    const ok = await track(id, 'done');
+    setSaveState(ok ? 'idle' : 'error');
   }
 
   const usedBy = PATHS.filter(p => p.steps.some(s => s.id === id && s.kind === 'lesson'));
   return (
     <section className="lesson">
-      <nav className="crumbs"><a href="#top">Home</a> › <a href="#paths">Learning paths</a> › {lesson.title}</nav>
+      <nav className="crumbs"><a href="#library">Library</a> › <a href="#paths">Learning paths</a> › {lesson.title}</nav>
       <p className="lesson-kicker">Foundation</p>
       <h1>{lesson.title}</h1>
       <p className="paths-lead">{lesson.blurb}</p>
       {id === 'mod' && <Modulo onCorrect={finish} solved={correct} />}
       {id === 'primes' && <Primes onCorrect={finish} solved={correct} />}
       {id === 'xor' && <Xor onCorrect={finish} solved={correct} />}
-      {correct && user && progress[id] === 'done' && <p className="lesson-ok">Saved. This lesson counts on every path that includes it.</p>}
-      {correct && !user && <p className="paths-signin">That answer is right. <button type="button" className="btn" onClick={openAuth}>Sign in</button> to save it on your path.</p>}
+      {correct && user && progress[id] === 'done' && <p className="lesson-ok" role="status">Saved. This lesson counts on every path that includes it.</p>}
+      {correct && user && progress[id] !== 'done' && saveState === 'saving' && <p role="status">Saving…</p>}
+      {correct && user && progress[id] !== 'done' && saveState === 'error' && <p className="acct-error" role="alert">Could not save this lesson. <button type="button" className="btn" onClick={() => { void finish(); }}>Retry</button></p>}
+      {correct && !user && <p className="paths-signin">That answer is right. <button type="button" className="btn" onClick={() => openAuth()}>Sign in</button> to save it on your path.</p>}
       <p className="lesson-used">On {usedBy.map(p => p.title).join(', ')}.</p>
     </section>
   );

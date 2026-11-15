@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const node = process.execPath;
-const server = spawn(node, ['server/index.mjs'], { stdio: 'inherit' });
+const server = spawn(node, ['--experimental-strip-types', 'server/index.mjs'], { stdio: 'inherit' });
 const vite = spawn(node, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url))], { stdio: 'inherit' });
 
 function stop() {

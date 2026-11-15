@@ -12,7 +12,7 @@ export function ContentPage({ page }: { page: string }) {
   const content = PAGES[page];
   return (
     <section className="lib" id={`v-${page}`}>
-      <nav className="crumbs"><a href="#top">Home</a> › {CRUMBS[page]}</nav>
+      <nav className="crumbs"><a href="#library">Library</a> › {CRUMBS[page]}</nav>
       <Html className="lib-hero" html={content.hero} />
       {content.sections.map(s => {
         const W = s.widget ? WIDGETS[s.widget] : undefined;

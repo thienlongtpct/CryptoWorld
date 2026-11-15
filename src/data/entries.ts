@@ -1,5 +1,14 @@
 // Dictionary entries. HTML fields are trusted, hand-written markup rendered with <Html>.
 // Citations use <a class="cite" data-paper="id">; the app turns them into bibliography links.
+import { TOPIC_BY_ID } from '../vis/registry';
+
+/** Dictionary route. Terms that share an id with a visualization use #def- so the term page opens. */
+export function termRoute(id: string) {
+  return TOPIC_BY_ID[id] ? `def-${id}` : id;
+}
+export function termHref(id: string) {
+  return `#${termRoute(id)}`;
+}
 export interface FullEntry {
   id: string; headword: string; abbr: string; pos: string; cat: string; short: false;
   senses: string[]; func: string; prose: string; demo: string | null; uses: string; library: string;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { bigPow, hex, minv, mod, rnd, spn, spnTrace } from '../lib/crypto';
+import { bigPow, differingBits, flipUtf8Bit, hex, minv, mod, rnd, spn, spnTrace, utf8 } from '../lib/crypto';
 import { Kv, Lab, Pv, Seg } from '../components/ui';
 
 export const MODERN_TIMELINE: [string, string, string][] = [
@@ -100,38 +100,108 @@ export function Modes() {
 }
 
 // ---------- SHA-256 avalanche ----------
-async function sha256Bytes(s: string) { return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))); }
+async function sha256Bytes(data: Uint8Array) {
+  const copy = new Uint8Array(data);
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', copy));
+}
 const toHex = (u: Uint8Array) => [...u].map(x => x.toString(16).padStart(2, '0')).join('');
-export function HashAvalanche() {
-  const [a, setA] = useState('Pay Bob 100 dollars'), [b, setB] = useState('Pay Bob 900 dollars');
-  const [h, setH] = useState<[Uint8Array, Uint8Array] | null | 'na'>(null);
+const bitAt = (u: Uint8Array, i: number) => (u[i >> 3] >> (7 - (i & 7))) & 1;
+
+export interface ShaPair {
+  a: string; setA: (v: string) => void;
+  b: string; setB: (v: string) => void;
+  /** When set, B is A's UTF-8 encoding with this bit flipped, not the text in `b`. */
+  flip: number | null; setFlip: (v: number | null) => void;
+  err: string; setErr: (v: string) => void;
+  dig: [Uint8Array, Uint8Array] | null | 'na';
+  aBytes: Uint8Array; bBytes: Uint8Array;
+  trace: string;
+}
+
+/** Real SHA-256 of two inputs. Digests are cleared as soon as the inputs change, so the picture never shows a stale hash. */
+export function useShaPair(initA = 'Pay Bob 100 dollars', initB = 'Pay Bob 900 dollars'): ShaPair {
+  const [a, setA] = useState(initA);
+  const [b, setB] = useState(initB);
+  const [flip, setFlip] = useState<number | null>(null);
+  const [err, setErr] = useState('');
+  const [dig, setDig] = useState<[Uint8Array, Uint8Array] | null | 'na'>(null);
+  const aBytes = useMemo(() => utf8(a), [a]);
+  const bBytes = useMemo(() => (flip === null ? utf8(b) : flipUtf8Bit(a, flip) ?? new Uint8Array()), [a, b, flip]);
   useEffect(() => {
     let live = true;
-    Promise.all([sha256Bytes(a), sha256Bytes(b)]).then(r => live && setH(r as [Uint8Array, Uint8Array])).catch(() => live && setH('na'));
+    setDig(null);
+    Promise.all([sha256Bytes(aBytes), sha256Bytes(bBytes)])
+      .then(r => { if (live) setDig([r[0], r[1]]); })
+      .catch(() => { if (live) setDig('na'); });
     return () => { live = false; };
-  }, [a, b]);
-  const bit = (u: Uint8Array, i: number) => (u[i >> 3] >> (7 - (i & 7))) & 1;
-  const diff = h && h !== 'na' ? Array.from({ length: 256 }, (_, i) => bit(h[0], i) !== bit(h[1], i)) : [];
+  }, [aBytes, bBytes]);
+  return { a, setA, b, setB, flip, setFlip, err, setErr, dig, aBytes, bBytes, trace: `${a}\0${b}\0${flip ?? 'text'}` };
+}
+
+export function HashReadout({ pair, step = 2 }: { pair: ShaPair; step?: 0 | 1 | 2 }) {
+  const dig = pair.dig && pair.dig !== 'na' ? pair.dig : null;
+  const oneBit = pair.flip !== null && differingBits(pair.aBytes, pair.bBytes) === 1;
+  const sameBytes = toHex(pair.aBytes) === toHex(pair.bBytes);
+  const diff = dig ? Array.from({ length: 256 }, (_, i) => bitAt(dig[0], i) !== bitAt(dig[1], i)) : [];
   const nd = diff.filter(Boolean).length;
   return (
-    <Lab>
-      <div className="parties">
-        <label className="pv wire"><h4>Input A</h4><input type="text" value={a} onChange={e => setA(e.target.value)} /></label>
-        <label className="pv wire"><h4>Input B</h4><input type="text" value={b} onChange={e => setB(e.target.value)} /></label>
-      </div>
-      {h === 'na' ? <div className="note">SHA-256 is unavailable in this browser context.</div> : h && <>
+    <>
+      {step === 0 && (
         <div className="parties">
-          <Pv who="wire" title="SHA-256(A)"><div className="mono hexout">{toHex(h[0])}</div></Pv>
-          <Pv who="wire" title="SHA-256(B)"><div className="mono hexout">{toHex(h[1])}</div></Pv>
-        </div>
-        <div className="hash-wrap">
-          <div className="hgrid" aria-label="256 output bits; differing bits highlighted">{diff.map((d, i) => <span key={i} className={d ? 'hd' : bit(h[0], i) ? 'h1' : ''} />)}</div>
-          <Pv who="wire" title={`${nd} of 256 bits differ`}>
-            <div className="dbar big"><span style={{ width: `${(nd / 256) * 100}%` }} /></div>
-            <div className="note">{a === b ? 'Identical inputs give identical digests: hashing is deterministic.' : `That is ${(nd / 2.56).toFixed(1)}%; an ideal hash flips each bit with probability ½, so expect about 128.`} Orange squares mark differing bits.</div>
+          <Pv who="wire" title="UTF-8 bytes of A"><div className="mono hexout">{toHex(pair.aBytes) || '—'}</div></Pv>
+          <Pv who="wire" title={oneBit ? `UTF-8 bytes of B (bit ${pair.flip! % (pair.aBytes.length * 8)} of A flipped)` : 'UTF-8 bytes of B'}>
+            <div className="mono hexout">{toHex(pair.bBytes) || '—'}</div>
+            {oneBit && <div className="note">Exactly one input bit differs. A character change is usually several bits.</div>}
           </Pv>
         </div>
-      </>}
+      )}
+      {step >= 1 && (pair.dig === 'na' ? <div className="note">SHA-256 is unavailable in this browser context.</div> : !dig ? <div className="note">Computing SHA-256…</div> : (
+        <>
+          <div className="parties">
+            <Pv who="wire" title="SHA-256(A)"><div className="mono hexout">{toHex(dig[0])}</div></Pv>
+            <Pv who="wire" title="SHA-256(B)"><div className="mono hexout">{toHex(dig[1])}</div></Pv>
+          </div>
+          {step >= 2 && (
+            <div className="hash-wrap">
+              <div className="hgrid" aria-label="256 output bits; differing bits highlighted">{diff.map((d, i) => <span key={i} className={d ? 'hd' : bitAt(dig[0], i) ? 'h1' : ''} />)}</div>
+              <Pv who="wire" title={`${nd} of 256 bits differ`}>
+                <div className="dbar big"><span style={{ width: `${(nd / 256) * 100}%` }} /></div>
+                <div className="note">{sameBytes ? 'Identical inputs give identical digests: hashing is deterministic.' : `That is ${(nd / 256 * 100).toFixed(1)}%. An ideal hash flips each output bit with probability ½, so expect about 128.`} Orange squares mark differing output bits. These are real SHA-256 digests.</div>
+              </Pv>
+            </div>
+          )}
+        </>
+      ))}
+    </>
+  );
+}
+
+export function HashInputs({ pair }: { pair: ShaPair }) {
+  const [bit, setBit] = useState(0);
+  return (
+    <div className="controls">
+      <label className="pv wire"><h4>Input A</h4><input type="text" value={pair.a} onChange={e => { pair.setA(e.target.value); pair.setFlip(null); pair.setErr(''); }} /></label>
+      <label className="pv wire"><h4>Input B</h4><input type="text" value={pair.flip === null ? pair.b : '(one bit of A)'} disabled={pair.flip !== null} onChange={e => { pair.setB(e.target.value); pair.setFlip(null); pair.setErr(''); }} /></label>
+      <label>bit <input type="number" min={0} value={bit} onChange={e => setBit(+e.target.value)} /></label>
+      <button type="button" className="btn ghost" onClick={() => {
+        if (!utf8(pair.a).length) { pair.setErr('Type something in A before flipping a bit.'); return; }
+        if (!Number.isInteger(bit) || bit < 0) { pair.setErr('Choose a whole bit index of 0 or more.'); return; }
+        pair.setErr('');
+        pair.setFlip(bit);
+      }}>Flip one bit of A</button>
+      {pair.flip !== null && <button type="button" className="btn ghost" onClick={() => { pair.setFlip(null); pair.setErr(''); }}>Compare with text B</button>}
+      {pair.err && <div className="bad">{pair.err}</div>}
+    </div>
+  );
+}
+
+export function HashAvalanche() {
+  const pair = useShaPair();
+  return (
+    <Lab>
+      <HashInputs pair={pair} />
+      <HashReadout pair={pair} step={0} />
+      <HashReadout pair={pair} step={2} />
     </Lab>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../state';
-import { ENTRIES, type Entry } from '../data/entries';
+import { ENTRIES, termHref, type Entry } from '../data/entries';
 import { DepMap } from '../components/DepMap';
 
 const stripTags = (s: string) => s.replace(/<[^>]+>/g, '');
@@ -26,16 +26,17 @@ export function Terms() {
 
   return (
     <section id="v-terms">
-      <nav className="crumbs"><a href="#top">Home</a> › Dictionary</nav>
+      <nav className="crumbs"><a href="#library">Library</a> › Dictionary</nav>
       <div className="front">
         <h1>All terms</h1>
-        <p className="prose">Pick a term to open its page. Entries marked <span className="demo-tag">demo</span> include an interactive demo. <span className="toy">TOY · NOT SECURE</span></p>
+        <p className="prose">Pick a term to open its page. Entries marked <span className="demo-tag">demo</span> include an interactive demo.</p>
         <details className="try">
           <summary>How to read an entry</summary>
           <div className="howto" style={{ padding: '4px 16px 16px' }}>
             <div><b>Headword</b>Term, abbreviation, part of speech and category.</div>
             <div><b>Senses</b>Numbered meanings, most common first.</div>
-            <div><b>Try it</b>An interactive demo. Use <i>Alice sees</i> or <i>Bob sees</i> (in the header, on every demo, or keys A / B / E) and values that party never sees turn into <span className="redact-demo">hidden</span> blocks.</div>
+            <div><b>Try it</b>An interactive demo. When a demo hides one party's values, <i>Alice sees</i> and <i>Bob sees</i> (or keys A / B / E) turn the other party's secrets into <span className="redact-demo">hidden</span> blocks.</div>
+            <div><b>Practice</b>Every term ends with a short question. A correct answer can be saved on your account.</div>
             <div><b>Origin · See also</b>Bracketed citations open the paper in the bibliography; cross-references open related entries.</div>
           </div>
         </details>
@@ -54,7 +55,7 @@ export function Terms() {
             <ul className="terms">
               {es.map(e => (
                 <li key={e.id}>
-                  <a href={`#${e.id}`}>
+                  <a href={termHref(e.id)}>
                     <span className="tc-h"><b>{e.headword}</b>{e.abbr && <> <span className="abbr">{e.abbr}</span></>} <i>{e.pos}</i>{!e.short && e.demo && <> <span className="demo-tag">demo</span></>}</span>
                     <span className="tc-s">{snippet(e)}</span>
                     <span className="tc-c">{e.cat}</span>

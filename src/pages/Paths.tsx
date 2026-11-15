@@ -1,4 +1,6 @@
 import { useAccount } from '../account';
+import { Ctf } from '../components/Ctf';
+import { ctfId } from '../data/ctf';
 import { PATH_BY_ID, PATH_TREE, stepHref, stepTitle, type Step, type TreeNode } from '../data/paths';
 
 const NW = 156;
@@ -95,20 +97,22 @@ export function Paths() {
   const { user, progress, openAuth } = useAccount();
   return (
     <section className="paths">
-      <nav className="crumbs"><a href="#top">Home</a> › Learning path</nav>
+      <nav className="crumbs"><a href="#library">Library</a> › Learning path</nav>
       <h1>Learning path</h1>
       <p className="paths-lead">Start at modular arithmetic. The tree splits into classical ciphers, public-key cryptography, oblivious computation, and private sets.</p>
-      {!user && <p className="paths-signin">Sign in to keep this progress on your account. <button type="button" className="btn" onClick={openAuth}>Create an account</button></p>}
+      {!user && <p className="paths-signin">Sign in to keep this progress on your account. <button type="button" className="btn" onClick={() => openAuth()}>Create an account</button></p>}
       <p className="tree-key"><i className="done" /> Learned <i className="seen" /> In progress</p>
       <PathTree />
       <div className="path-grid">
         {['foundations', 'ciphers', 'public-key', 'oblivious', 'sets'].map(id => {
           const p = PATH_BY_ID[id];
           const s = stats(p.steps, progress);
+          const captured = progress[ctfId(id)] === 'done';
           return (
             <a key={id} className="path-card" href={`#path-${id}`} style={{ ['--pc' as string]: p.color }}>
               <b>{p.title}</b>
               <span>{s.done} of {s.total} learned</span>
+              <span>{captured ? 'Flag captured' : 'Final challenge'}</span>
             </a>
           );
         })}
@@ -125,13 +129,14 @@ export function PathDetail({ id }: { id: string }) {
   const finished = s.done === s.total;
   return (
     <section className="paths">
-      <nav className="crumbs"><a href="#top">Home</a> › <a href="#paths">Learning path</a> › {path.title}</nav>
+      <nav className="crumbs"><a href="#library">Library</a> › <a href="#paths">Learning path</a> › {path.title}</nav>
       <h1>{path.title}</h1>
       <p className="paths-lead">{path.blurb}</p>
       <p className="path-progress" style={{ ['--pc' as string]: path.color }}><i style={{ width: `${(100 * s.done) / s.total}%` }} />{finished ? 'You finished this path.' : `${s.done} of ${s.total} learned`}</p>
       {!finished && <a className="btn-l primary" href={stepHref(s.next)}>Continue with {stepTitle(s.next)}</a>}
-      {!user && <p className="paths-signin">These checkmarks are saved only while you are signed in. <button type="button" className="btn" onClick={openAuth}>Sign in</button></p>}
+      {!user && <p className="paths-signin">These checkmarks are saved only while you are signed in. <button type="button" className="btn" onClick={() => openAuth()}>Sign in</button></p>}
       <PathTree focus={new Set(path.steps.map(step => step.id))} />
+      <Ctf pathId={id} />
     </section>
   );
 }

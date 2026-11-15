@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { bigPow, minv, mod, rnd, spn, spnTrace } from '../../lib/crypto';
 import { Kv, Seg } from '../../components/ui';
-import { EP, GEN, HashAvalanche, POINTS, Pixels, add, orderOf, slope, sourceImage, type Pt } from '../../demos/modern';
+import { EP, GEN, HashInputs, HashReadout, POINTS, Pixels, add, orderOf, slope, sourceImage, useShaPair, type Pt } from '../../demos/modern';
 import { VisPage, type Frame } from '../Player';
 import { Go, Hl, Party, SMsg, Wire, useDraft } from '../kit';
 
@@ -62,7 +62,26 @@ export function ModesVis() {
   );
 }
 
-export const HashVis = () => <VisPage topicId="hash" stage={<HashAvalanche />} code={['digest ← SHA-256(input)   // 256 bits', 'one-way: hard to find any input for a given digest', 'collision resistant: hard to find two inputs with one digest', 'avalanche: a one-character change flips ~128 bits']} />;
+const HASH_CODE = ['bytes ← UTF-8(input)', 'digest ← SHA-256(bytes)   // 256 bits', 'one-way and collision resistant', 'count output bits that differ; one input bit flips about half of them'];
+export function HashVis() {
+  const pair = useShaPair();
+  const frames = useMemo<Frame[]>(() => [
+    { line: 0, status: <>SHA-256 hashes the UTF-8 bytes, not the characters on screen. {pair.flip !== null ? 'B is A with exactly one of those bits flipped.' : 'B is a second text.'}</>, stage: <HashReadout pair={pair} step={0} /> },
+    { line: 1, status: pair.dig === 'na' ? <>SHA-256 is unavailable in this browser.</> : pair.dig ? <>These are the real SHA-256 digests of those bytes.</> : <>Computing SHA-256…</>, stage: <HashReadout pair={pair} step={1} /> },
+    { line: 3, status: pair.dig && pair.dig !== 'na'
+      ? (pair.flip !== null
+        ? <>One input bit changed. Orange squares are the output bits that flipped. Expect about 128 of 256.</>
+        : pair.a === pair.b
+          ? <>The inputs are identical, so every output bit matches. Hashing is deterministic.</>
+          : <>The inputs differ. Orange squares are the output bits that flipped. Expect about 128 of 256.</>)
+      : <>The bit count appears once both digests are ready.</>, stage: <HashReadout pair={pair} step={2} /> },
+  ], [pair.a, pair.b, pair.flip, pair.dig, pair.aBytes, pair.bBytes]);
+  return (
+    <VisPage topicId="hash" code={HASH_CODE} frames={frames} trace={pair.trace} actions={[
+      { label: 'Inputs', form: <HashInputs pair={pair} /> },
+    ]} />
+  );
+}
 
 // ---------- RSA ----------
 const PRIMES = [11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113];

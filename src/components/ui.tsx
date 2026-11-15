@@ -62,7 +62,6 @@ export function Lab({ title, toy, secret, children, className }: { title?: React
       {(title || toy || secret) && (
         <div className="lab-h">
           {title ? <span className="eyebrow">{title}</span> : <span />}
-          {toy && <Toy>{toy === true ? 'TOY' : toy}</Toy>}
           {secret && <div className="lab-eyes"><span className="note">Whose view?</span><Eyes /></div>}
         </div>
       )}
