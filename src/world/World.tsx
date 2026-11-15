@@ -191,10 +191,11 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
     openAuth('signin', reason);
   }
 
-  function goTo(target: string) {
+  function goTo(target: string, arrive?: { x: number; y: number }) {
     if (!canEnter(target, userRef.current, progressRef.current)) return;
     const next = roomOf(target);
-    applyPlace({ room: next.id, x: next.spawn.x, y: next.spawn.y });
+    const at = arrive ?? next.spawn;
+    applyPlace({ room: next.id, x: at.x, y: at.y });
     setListOpen(false);
     setPreview(null);
     setTalk(null);
@@ -244,11 +245,11 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
     }
     if (spot.kind === 'door' && spot.to) {
       if (canEnter(spot.to, userRef.current, progressRef.current)) {
-        goTo(spot.to);
+        goTo(spot.to, spot.arrive);
         return;
       }
       if (!userRef.current && roomOf(spot.to).entry === 'auth') {
-        afterLogin(`Log in to enter ${spot.name} and save solved gates. You can keep reading the entrance.`, () => goTo(spot.to!));
+        afterLogin(`Log in to enter ${spot.name} and save solved gates. You can keep reading the entrance.`, () => goTo(spot.to!, spot.arrive));
         return;
       }
       setPreview(spot);

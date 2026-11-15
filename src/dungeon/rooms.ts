@@ -1,7 +1,7 @@
 import { SHELVES } from '../access.ts';
 import { CATACOMB_GATES, challengeItemId } from '../dungeon/challenges.ts';
 import { portrayalNotice } from '../characters/cast.ts';
-import { move, nearestSpot, solidAt, type Spot, type Tile } from '../world/map.ts';
+import { fits, move, nearestSpot, type Blocker, type Spot, type Tile } from '../world/map.ts';
 
 export interface Room {
   id: string;
@@ -65,6 +65,12 @@ function grid(rows: string[]): Tile[][] {
     '|': 'bars',
     P: 'pillar',
     y: 'crystal',
+    A: 'library',
+    K: 'keep',
+    H: 'crypt',
+    T: 'temple',
+    C: 'cabin',
+    G: 'greenhouse',
   };
   return rows.map(row => [...row].map(cell => legend[cell] ?? 'stone'));
 }
@@ -139,59 +145,59 @@ export const ROOMS: Record<string, Room> = {
     entry: 'open',
     requires: [],
     back: 'grounds',
-    spawn: { x: 19.5, y: 19.5 },
+    spawn: { x: 18.5, y: 23.5 },
     map: grid([
       'oo^^o^^^^o^^^ooo^o^^^^^^^o^o^^^^o^^o^oo^',
-      'o*f*u****f***************f**********f**^',
-      '^**********o*^**#######*******h~~~~****^',
-      'o*^r************#######**^****h~~~~h***^',
-      'o*****f***f****y#######y******f~~~~***fo',
-      '^***u****f*****h===d===h**u*****r******^',
-      '^*h******^***f**===+===***f*^f*******h*^',
-      'o**o*o**********===+===***********o*o**o',
-      '^***######******ff*+*ff*******######***^',
-      'o*f*######*h*******+*******h**######f**o',
-      'o***##d###o********+********o*##d###***o',
-      '^***++++++++++++++++++++++++++++++++***^',
-      '^***f****f***f****f+f****f****u**f***u*o',
-      'o*******r***^*****f+f******^******r****o',
-      '^***######********f+f*********######***^',
-      '^*f*######*h******f+f******h**######f**o',
-      'o***##d###o********+********o*##d###***^',
-      '^***++++++++++++++++++++++++++++++++***o',
-      '^*f**f****u***f***f+f***f**********f***o',
-      'o**r****f*****o****+****o*****f**r*****^',
-      'o*^*******h~~~~hf*****f*****f*****x**^*^',
-      '^***#####h~~~~~~h**************f****f**o',
-      'o***##d##h~~~~~~h**r***^***u**o********^',
-      'o**f*****r~~~~~~hf*f********f*****f^***^',
-      'o*u***f***h*~~h**r***********r**u******o',
+      'o*****f***f**************************rr^',
+      '^***f*****f*f***AAAAAAAA*f****HHHHHH**^^',
+      'oh***********^**AAAAAAAA*o*u**HHHHHH*^*^',
+      'o***********^*^*AAAAAAAA***f**HHHHHH**^o',
+      '^o*KKKKKK*f*****AAAdAAAA******HHHdHH***^',
+      '^**KKKKKK*f*f*fy========y******+++***f*^',
+      'oh*KKKKKK****h**=======++******+*******o',
+      '^**KKdKKK*****f****+****++++++++****h**^',
+      'o****++++**********+**f**********f**~~*o',
+      'o*******++++++++++++***u*^*********r~~*o',
+      '^*urf*************+**f*f^**CCCCC*f**h~*^',
+      '^*^***************+**f*****CCCCC**o****o',
+      'o**^u*TTTTTTT*****++*****o*CCCCC*******o',
+      '^*f*f*TTTTTTT******++++****CCdCC***f*o*^',
+      '^*****TTTTTTT******+**++++++++****^****o',
+      'o*o*f*TTTdTTT******+***************^*o*^',
+      '^*r*f****+*+++++++++****************f**o',
+      '^*o*f****+++******+***GGGGGG*f*r****h**o',
+      'o*f***h**h*r**ffu*+*o*GGGGGG****o*f***f^',
+      'o*****~~~~***fr^**+***GGGGGG***f*******^',
+      '^f*oh~~~~~~h**^f**+***GGdGGG*f*^***f***o',
+      'o**xh~~~~~~h*^*^f*++++**+*****^*^f**u**^',
+      'oo****~~~~***u**u*+**++++******fr**h***^',
+      'o**f*r*hh*****fff*+*******f**f******h**o',
       'oo^oo^^o^^o^o^^o^^o^oo^oo^^^o^o^^^oo^^^^',
     ]),
-    objective: 'Follow the dirt path. Each side building is a different part of the library.',
+    objective: 'Follow the paths. Each building is a different part of the library, and every path ends at a door.',
     spots: [
       person({
         id: 'alice-grounds',
         name: 'Alice',
-        x: 19.5,
-        y: 12.5,
+        x: 20.5,
+        y: 11.5,
         kind: 'person',
         characterId: 'alice',
         regionId: 'grounds',
         place: 'Library grounds',
-        guest: 'I am Alice. Follow the dirt path north to the sanctuary. The side buildings are the library: ciphers, hashes, public keys, computation, and private sets. Each one looks different. You can look around before you log in.',
+        guest: 'I am Alice. Follow the winding path north to the sanctuary. The other buildings are the library: ciphers, hashes, public keys, computation, and private sets. Each one looks different, and a path leads to every door. You can look around before you log in.',
         signed: 'I am Alice. The dirt path leads to the sanctuary and the Cipher Catacombs. The side buildings are the five areas of the library.',
       }),
       person({
         id: 'bob-grounds',
         name: 'Bob',
-        x: 14.5,
+        x: 15.5,
         y: 12.5,
         kind: 'person',
         characterId: 'bob',
         regionId: 'grounds',
         place: 'Library grounds',
-        guest: 'I am Bob. West of the path: the key citadel, then the cipher court, then the overlap garden. East of the path: the hash crypt and the circuit shop. The north door is the sanctuary.',
+        guest: 'I am Bob. Every path branch ends at a door. The keep with the flag is the key citadel, the pillared temple is the cipher court, the dark crypt is for hashes, the log cabin is the circuit shop, and the greenhouse is the overlap garden. The big hall at the top is the sanctuary.',
         signed: 'I am Bob. I can point you to the area that matches a topic. I still keep my own inputs.',
       }),
       {
@@ -205,11 +211,11 @@ export const ROOMS: Record<string, Room> = {
         guest: 'The dirt path ends at the library door.',
         signed: 'The dirt path ends at the sanctuary door.',
       },
-      groundsDoor('to-keys', 'Key citadel', 6.5, 10.5, 'keys', 'KEYS', 'Public keys and encrypted math. The room is a citadel of keys.'),
-      groundsDoor('to-hashes', 'Hash crypt', 32.5, 10.5, 'hashes', 'HASHES', 'Hashes and secret-key encryption. The room is a crypt of digest blocks.'),
-      groundsDoor('to-ciphers', 'Cipher court', 6.5, 16.5, 'ciphers', 'CIPHERS', 'Ciphers, shares, and proofs. The room is a court of wheels and tablets.'),
-      groundsDoor('to-compute', 'Circuit shop', 32.5, 16.5, 'compute', 'COMPUTE', 'Computing without showing inputs. The room is a shop of circuits.'),
-      groundsDoor('to-sets', 'Overlap garden', 6.5, 22.5, 'sets', 'SETS', 'Private lists and their overlap. The room is a garden of two ponds.'),
+      groundsDoor('to-keys', 'Key citadel', 5.5, 8.5, 'keys', 'KEYS', 'Public keys and encrypted math. The room is a citadel of keys.'),
+      groundsDoor('to-hashes', 'Hash crypt', 33.5, 5.5, 'hashes', 'HASHES', 'Hashes and secret-key encryption. The room is a crypt of digest blocks.'),
+      groundsDoor('to-ciphers', 'Cipher court', 9.5, 16.5, 'ciphers', 'CIPHERS', 'Ciphers, shares, and proofs. The room is a court of wheels and tablets.'),
+      groundsDoor('to-compute', 'Circuit shop', 29.5, 14.5, 'compute', 'COMPUTE', 'Computing without showing inputs. The room is a shop of circuits.'),
+      groundsDoor('to-sets', 'Overlap garden', 24.5, 21.5, 'sets', 'SETS', 'Private lists and their overlap. The room is a garden of two ponds.'),
     ],
   },
   ciphers: knowledge('ciphers', 'Cipher court', 'foundations', [
@@ -766,6 +772,31 @@ export const ROOMS: Record<string, Room> = {
   },
 };
 
+/**
+ * Each door leads to the front of the door that leads back, so leaving a building puts you outside it.
+ * A door with no partner on the other side uses that room's spawn.
+ */
+function linkDoors() {
+  for (const room of Object.values(ROOMS)) {
+    for (const spot of room.spots) {
+      if (spot.kind !== 'door' || !spot.to || spot.arrive) continue;
+      const target = ROOMS[spot.to];
+      const partner = target?.spots.find(other => other.kind === 'door' && other.to === room.id);
+      if (!target || !partner) continue;
+      const blockers = blockersOf(target);
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        const x = partner.x + dx;
+        const y = partner.y + dy;
+        if (fits(target.map, x, y, undefined, blockers)) {
+          spot.arrive = { x, y };
+          break;
+        }
+      }
+    }
+  }
+}
+linkDoors();
+
 export const ROOM_LIST = ['grounds', 'ciphers', 'hashes', 'keys', 'compute', 'sets', 'sanctuary', 'bridge', 'hall', 'caesar', 'xor', 'final', 'vault'] as const;
 
 export function roomOf(id: string): Room {
@@ -812,7 +843,7 @@ export function resolvePlace(saved: Place, user: string | null, progress: Record
     room = ROOMS[room.back];
   }
   if (!room) return sanctuaryPlace();
-  if (solidAt(room.map, saved.x, saved.y, openCells(room, progress)) || saved.room !== room.id) {
+  if (!fits(room.map, saved.x, saved.y, openCells(room, progress), blockersOf(room)) || saved.room !== room.id) {
     return { room: room.id, x: room.spawn.x, y: room.spawn.y };
   }
   return { room: room.id, x: saved.x, y: saved.y };
@@ -925,8 +956,13 @@ export function stand(room: Room, x: number, y: number) {
   return nearestSpot(room.spots, x, y);
 }
 
+/** NPCs stand where their spots are, and the player walks around them. */
+export function blockersOf(room: Room): Blocker[] {
+  return room.spots.filter(spot => spot.kind === 'person').map(spot => ({ x: spot.x, y: spot.y }));
+}
+
 export function step(room: Room, x: number, y: number, dx: number, dy: number, progress: Record<string, string>) {
-  return move(room.map, x, y, dx, dy, openCells(room, progress));
+  return move(room.map, x, y, dx, dy, openCells(room, progress), blockersOf(room));
 }
 
 /** Solved Catacomb gates. The bridge board is a separate wing and does not count toward the treasure room. */

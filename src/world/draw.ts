@@ -12,7 +12,7 @@ import aliceUrl from '../assets/pixel-crawler/people/alice.png';
 import bobUrl from '../assets/pixel-crawler/people/bob.png';
 import shannonUrl from '../assets/pixel-crawler/people/shannon.png';
 import { CHARACTER_BY_ID } from '../characters/cast';
-import type { Spot, Tile } from './map';
+import { BUILDINGS, type Spot, type Tile } from './map';
 
 export interface PaintState {
   map: Tile[][];
@@ -115,7 +115,10 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   const cols = map[0].length;
   const rows = map.length;
   // Grow the room until it touches the screen, and keep the whole map visible.
-  const zoom = Math.min(viewPxW / (cols * 16 * dpr), viewPxH / (rows * 16 * dpr));
+  const fit = Math.min(viewPxW / (cols * 16 * dpr), viewPxH / (rows * 16 * dpr));
+  // On a narrow screen a large room would shrink to unreadable tiles: keep tiles at least 26 px and follow the player.
+  const narrow = viewPxW / dpr < 640;
+  const zoom = narrow ? Math.max(fit, 26 / 16) : fit;
   const unit = zoom * dpr;
   const tile = 16 * unit;
   const viewW = viewPxW / tile;
@@ -139,8 +142,8 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   ctx.clip();
   ctx.translate(0, padTop);
 
-  const x0 = Math.max(0, Math.floor(camX) - 1);
-  const y0 = Math.max(0, Math.floor(camY) - 1);
+  const x0 = Math.max(0, Math.floor(camX) - 8);
+  const y0 = Math.max(0, Math.floor(camY) - 6);
   const x1 = Math.min(cols - 1, Math.ceil(camX + viewW) + 1);
   const y1 = Math.min(rows - 1, Math.ceil(camY + viewH) + 3);
   const frame = state.reduced ? 0 : Math.floor(state.time / 450) % 4;
@@ -162,7 +165,7 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       const draw = standing(ctx, ctxInfo, x, y, sx(x), sy(y));
-      if (draw) sprites.push({ y: y + 0.9, draw });
+      if (draw) sprites.push({ y: draw.depth ?? y + 0.9, draw });
     }
   }
   for (const spot of state.spots) {
@@ -180,7 +183,7 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   for (const spot of state.spots) {
     const character = spot.characterId ? CHARACTER_BY_ID[spot.characterId] : undefined;
     const label = character ? character.tag : spot.mark;
-    if (label) drawTag(ctx, label, spot.x, spot.y, camX, camY, tile);
+    if (label) drawTag(ctx, label, spot.x, labelY(map, spot), camX, camY, tile);
   }
   ctx.restore();
 }
@@ -197,6 +200,15 @@ interface Room {
   time: number;
   reduced: boolean;
   open: Set<string>;
+}
+
+/** A door in a building wears its label above the roof, clear of the emblem over the door. */
+function labelY(map: Tile[][], spot: Spot) {
+  const x = Math.floor(spot.x);
+  let y = Math.floor(spot.y);
+  if (spot.kind !== 'door' || !BUILDINGS.has(map[y - 1]?.[x] as Tile)) return spot.y;
+  while (BUILDINGS.has(map[y - 1]?.[x] as Tile)) y--;
+  return y + 1.45 - 0.45;
 }
 
 function ready(image: HTMLImageElement) {
@@ -585,9 +597,25 @@ function drawShelf(ctx: CanvasRenderingContext2D, room: Room, x: number, y: numb
   }
 }
 
+type Standing = (() => void) & { depth?: number };
+
 /** Objects that stand up from the floor. They are depth-sorted with the people. */
-function standing(ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, px: number, py: number): (() => void) | null {
+function standing(ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, px: number, py: number): Standing | null {
   const t = at(room, x, y)!;
+  if (BUILDINGS.has(t)) {
+    // Draw a building once, from its top-left tile, sorted by its front wall.
+    if (at(room, x - 1, y) === t || at(room, x, y - 1) === t) return null;
+    let w = 0;
+    while (at(room, x + w, y) === t) w++;
+    let h = 0;
+    while (at(room, x, y + h) === t) h++;
+    const doors: number[] = [];
+    for (let i = 0; i < w; i++) if (at(room, x + i, y + h - 1) === 'door') doors.push(i);
+    const draw: Standing = () => drawBuilding(ctx, room, t, x, y, w, h, px, py, doors);
+    // Sort by the top of the front row: someone standing in the doorway is drawn in front of the wall.
+    draw.depth = y + h - 1;
+    return draw;
+  }
   const { unit, tile } = room;
   const h = hash(x, y, 11);
   const cx = px + tile / 2;
@@ -629,13 +657,16 @@ function standing(ctx: CanvasRenderingContext2D, room: Room, x: number, y: numbe
   if (t === 'bars') return () => cell(ctx, dungeon, 9, 5, px, py, unit);
   if (t === 'door') {
     // Arched door at half scale: 32 × 48 source pixels become one tile wide and one and a half tall.
-    return () => {
+    const door: Standing = () => {
       if (!ready(dungeon)) {
         fill(ctx, '#6d4c41', px, py, tile);
         return;
       }
       ctx.drawImage(dungeon, 0, 7 * 16, 32, 48, px, py - tile / 2, tile, tile * 1.5);
     };
+    // Just after the building wall, and before anyone standing in the doorway.
+    door.depth = y + 0.01;
+    return door;
   }
   if (t === 'gate') {
     const open = room.open.has(`${x},${y}`);
@@ -663,6 +694,302 @@ function standing(ctx: CanvasRenderingContext2D, room: Room, x: number, y: numbe
     };
   }
   return null;
+}
+
+interface BuildingStyle {
+  roof: 'pitched' | 'flat' | 'glass';
+  base: string;
+  dark: string;
+  light: string;
+  emblem: 'book' | 'key' | 'hash' | 'wheel' | 'circuit' | 'venn';
+}
+
+const BUILDING_STYLES: Partial<Record<Tile, BuildingStyle>> = {
+  library: { roof: 'pitched', base: '#4f6086', dark: '#36425e', light: '#7488b2', emblem: 'book' },
+  temple: { roof: 'pitched', base: '#b4552f', dark: '#863b1e', light: '#d97a4b', emblem: 'wheel' },
+  cabin: { roof: 'pitched', base: '#527c3b', dark: '#3a5c29', light: '#76a052', emblem: 'circuit' },
+  crypt: { roof: 'pitched', base: '#2f434c', dark: '#1e2d33', light: '#45606b', emblem: 'hash' },
+  keep: { roof: 'flat', base: '#5b6573', dark: '#3a414b', light: '#8a95a5', emblem: 'key' },
+  greenhouse: { roof: 'glass', base: '#a9dbe0', dark: '#6fa8ae', light: '#e6f7f8', emblem: 'venn' },
+};
+
+const OUTLINE = '#1b1410';
+
+/** One building: shadow, two rows of facade, a roof over the rest, and an emblem over the door. */
+function drawBuilding(
+  ctx: CanvasRenderingContext2D,
+  room: Room,
+  kind: Tile,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+  px: number,
+  py: number,
+  doors: number[],
+) {
+  const style = BUILDING_STYLES[kind];
+  if (!style) return;
+  const { unit: u, tile: T } = room;
+  const roofRows = Math.max(1, h - 2);
+  const facadeY = py + roofRows * T;
+  const edge = (i: number) => (i === 0 ? 0 : i === w - 1 ? 2 : 1);
+
+  // Ground shadow to the south-east.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.fillRect(px + 4 * u, py + h * T - u, w * T, 3 * u);
+  ctx.fillRect(px + w * T, py + 8 * u, 4 * u, h * T - 6 * u);
+
+  // Facade: the bottom two rows.
+  for (let i = 0; i < w; i++) {
+    const fx = px + i * T;
+    for (let r = 0; r < 2; r++) {
+      const fy = facadeY + r * T;
+      if (kind === 'library') cell(ctx, dungeon, i % 3, 1 + r, fx, fy, u);
+      else if (kind === 'keep') cell(ctx, dungeon, edge(i), 16 + r, fx, fy, u);
+      else if (kind === 'crypt') cell(ctx, dungeon, 3 + edge(i), 16 + r, fx, fy, u);
+      else if (kind === 'temple') cell(ctx, floors, 16 + (i % 3), 1 + ((i + r) % 3), fx, fy, u);
+      else if (kind === 'cabin') {
+        if (ready(logs)) ctx.drawImage(logs, fx, fy, Math.ceil(T) + 1, Math.ceil(T) + 1);
+        else fill(ctx, '#8d5a32', fx, fy, T);
+      } else if (kind === 'greenhouse') {
+        if (r === 1) cell(ctx, dungeon, 6 + edge(i), 17, fx, fy, u);
+        else drawGlass(ctx, fx, fy, T, T, u, style, x0 + i);
+      }
+    }
+  }
+  // Facade details on the non-door columns.
+  for (let i = 0; i < w; i++) {
+    if (doors.includes(i)) continue;
+    const fx = px + i * T;
+    const upper = facadeY;
+    const nearDoor = doors.some(d => Math.abs(d - i) === 1);
+    if (kind === 'temple' && (i === 0 || i === w - 1 || nearDoor)) {
+      cell(ctx, dungeon, 3, 1, fx, upper, u);
+      cell(ctx, dungeon, 3, 2, fx, upper + T, u);
+    } else if (kind === 'library' && i % 2 === 1) {
+      drawWindow(ctx, fx, upper, u, '#2b2b33', '#ffcf6b', true);
+    } else if (kind === 'cabin' && i % 2 === 1) {
+      drawWindow(ctx, fx, upper, u, '#4e2f17', '#8ee8de', false);
+    } else if (kind === 'keep' && i % 2 === 1) {
+      ctx.fillStyle = '#111';
+      ctx.fillRect(fx + 7 * u, upper + 5 * u, 2 * u, 8 * u);
+      ctx.fillRect(fx + 5.5 * u, upper + 8 * u, 5 * u, 1.5 * u);
+    } else if (kind === 'crypt' && (i === 1 || i === w - 2)) {
+      cell(ctx, dungeon, 4, 18, fx, upper, u);
+    }
+  }
+
+  // Roof over the remaining rows, overhanging the walls a little and rising above the top row.
+  const ov = 3 * u;
+  const raise = 5 * u;
+  const rx = px - ov;
+  const ry = py - raise;
+  const rw = w * T + 2 * ov;
+  const rh = roofRows * T + raise;
+  ctx.fillStyle = OUTLINE;
+  ctx.fillRect(rx - u, ry - u, rw + 2 * u, rh + 2 * u);
+  if (style.roof === 'pitched') {
+    const ridge = Math.round(rh * 0.42);
+    ctx.fillStyle = style.light;
+    ctx.fillRect(rx, ry, rw, ridge);
+    ctx.fillStyle = style.base;
+    ctx.fillRect(rx, ry + ridge, rw, rh - ridge);
+    // Shingle courses, staggered.
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    let row = 0;
+    for (let yy = ry + 4 * u; yy < ry + rh - 2 * u; yy += 4 * u, row++) {
+      ctx.fillRect(rx, yy, rw, u);
+      for (let xx = rx + (row % 2 ? 3 : 0) * u; xx < rx + rw; xx += 6 * u) ctx.fillRect(xx, yy - 3 * u, u, 3 * u);
+    }
+    ctx.fillStyle = style.dark;
+    ctx.fillRect(rx, ry + ridge - u, rw, 2 * u);
+    ctx.fillRect(rx, ry + rh - 2 * u, rw, 2 * u);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.fillRect(rx, ry, rw, u);
+  } else if (style.roof === 'flat') {
+    for (let j = 0; j < Math.ceil(rh / T) + 1; j++) {
+      for (let i = 0; i < Math.ceil(rw / T) + 1; i++) {
+        const [c, r] = DUNGEON_FLOOR[hash(x0 + i, y0 + j, 5) % DUNGEON_FLOOR.length];
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(rx, ry, rw, rh);
+        ctx.clip();
+        cell(ctx, dungeon, c, r, rx + i * T, ry + j * T, u);
+        ctx.restore();
+      }
+    }
+    // Battlements around the edge.
+    const merlon = (mx: number, my: number, mw: number, mh: number) => {
+      ctx.fillStyle = OUTLINE;
+      ctx.fillRect(mx - u, my - u, mw + 2 * u, mh + 2 * u);
+      ctx.fillStyle = style.light;
+      ctx.fillRect(mx, my, mw, mh);
+      ctx.fillStyle = style.dark;
+      ctx.fillRect(mx, my + mh - u, mw, u);
+    };
+    for (let xx = rx; xx < rx + rw - 3 * u; xx += 7 * u) {
+      merlon(xx, ry, 4 * u, 4 * u);
+      merlon(xx, ry + rh - 4 * u, 4 * u, 4 * u);
+    }
+    for (let yy = ry + 7 * u; yy < ry + rh - 7 * u; yy += 7 * u) {
+      merlon(rx, yy, 4 * u, 4 * u);
+      merlon(rx + rw - 4 * u, yy, 4 * u, 4 * u);
+    }
+    // Flag on a pole in the middle of the roof.
+    const poleX = rx + rw / 2;
+    ctx.fillStyle = '#3e2723';
+    ctx.fillRect(poleX, ry - 10 * u, u, rh / 2 + 10 * u);
+    const wave = room.reduced ? 0 : Math.round(Math.sin(room.time / 300) * 1.5) * u;
+    ctx.fillStyle = '#c62828';
+    ctx.fillRect(poleX + u, ry - 10 * u, 8 * u, 5 * u + wave);
+    ctx.fillStyle = '#f6d46b';
+    ctx.fillRect(poleX + 3 * u, ry - 8.5 * u, 3 * u, 2 * u);
+  } else {
+    drawGlass(ctx, rx, ry, rw, rh, u, style, x0, true);
+  }
+
+  // Temple pediment, cabin chimney, crypt runes.
+  if (kind === 'temple') {
+    const cx = px + (w * T) / 2;
+    const base = ry + rh;
+    ctx.fillStyle = OUTLINE;
+    ctx.beginPath();
+    ctx.moveTo(cx - 1.6 * T - u, base);
+    ctx.lineTo(cx, base - 0.9 * T - u);
+    ctx.lineTo(cx + 1.6 * T + u, base);
+    ctx.fill();
+    ctx.fillStyle = '#eadfc6';
+    ctx.beginPath();
+    ctx.moveTo(cx - 1.6 * T + u, base - u);
+    ctx.lineTo(cx, base - 0.9 * T + u);
+    ctx.lineTo(cx + 1.6 * T - u, base - u);
+    ctx.fill();
+  }
+  if (kind === 'cabin') {
+    const cx = rx + rw - 1.4 * T;
+    ctx.fillStyle = OUTLINE;
+    ctx.fillRect(cx - u, ry - 7 * u, 7 * u, 11 * u);
+    ctx.fillStyle = '#8d4a2f';
+    ctx.fillRect(cx, ry - 6 * u, 5 * u, 9 * u);
+    ctx.fillStyle = '#5d2f1d';
+    ctx.fillRect(cx, ry - 6 * u, 5 * u, u);
+    if (!room.reduced) {
+      const t = (room.time / 900) % 1;
+      ctx.fillStyle = `rgba(230, 230, 230, ${0.55 * (1 - t)})`;
+      ctx.fillRect(cx + (1 + t * 3) * u, ry - (9 + t * 8) * u, (3 + t * 2) * u, (3 + t * 2) * u);
+    }
+  }
+  if (kind === 'crypt') {
+    const glow = room.reduced ? 1 : 0.7 + Math.sin(room.time / 400) * 0.3;
+    ctx.fillStyle = `rgba(77, 208, 225, ${glow})`;
+    for (let xx = rx + 4 * u, i = 0; xx < rx + rw - 4 * u; xx += 6 * u, i++) {
+      ctx.fillRect(xx, ry + 5 * u, 3 * u, u);
+      if (i % 2) ctx.fillRect(xx + u, ry + 4 * u, u, 3 * u);
+    }
+  }
+
+  // Emblem plaque over the first door.
+  const door = doors[0] ?? Math.floor(w / 2);
+  drawEmblem(ctx, style.emblem, px + door * T + T / 2, facadeY - 4 * u, u);
+}
+
+function drawWindow(ctx: CanvasRenderingContext2D, x: number, y: number, u: number, frame: string, glass: string, arched: boolean) {
+  ctx.fillStyle = frame;
+  ctx.fillRect(x + 4 * u, y + 4 * u, 8 * u, 10 * u);
+  if (arched) ctx.fillRect(x + 5 * u, y + 3 * u, 6 * u, u);
+  ctx.fillStyle = glass;
+  ctx.fillRect(x + 5 * u, y + 5 * u, 6 * u, 8 * u);
+  if (arched) ctx.fillRect(x + 6 * u, y + 4 * u, 4 * u, u);
+  ctx.fillStyle = frame;
+  ctx.fillRect(x + 7.5 * u, y + 5 * u, u, 8 * u);
+  ctx.fillRect(x + 5 * u, y + 8.5 * u, 6 * u, u);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.fillRect(x + 5 * u, y + 5 * u, 2 * u, u);
+}
+
+function drawGlass(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, u: number, style: BuildingStyle, seed: number, roof = false) {
+  if (roof) {
+    // Plants inside, seen through the glass.
+    const picks = [VEG.fern, VEG.lupine, VEG.leaf, VEG.cattail, VEG.sprout];
+    for (let i = 0, xx = x + 6 * u; xx < x + w - 10 * u; xx += 13 * u, i++) {
+      stamp(ctx, vegetation, picks[(seed + i) % picks.length], xx + 6 * u, y + h - 3 * u - ((i % 2) * 6 * u), u, 0.8);
+    }
+  }
+  ctx.fillStyle = roof ? 'rgba(169, 219, 224, 0.62)' : style.base;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = style.light;
+  for (let xx = x; xx <= x + w; xx += 8 * u) ctx.fillRect(xx, y, u, h);
+  for (let yy = y; yy <= y + h; yy += 8 * u) ctx.fillRect(x, yy, w, u);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+  for (let xx = x + 2 * u; xx < x + w - 4 * u; xx += 16 * u) ctx.fillRect(xx, y + 2 * u, 2 * u, Math.min(h - 4 * u, 5 * u));
+  ctx.fillStyle = style.dark;
+  ctx.fillRect(x, y + h - u, w, u);
+}
+
+function drawEmblem(ctx: CanvasRenderingContext2D, emblem: BuildingStyle['emblem'], cx: number, cy: number, u: number) {
+  const x = Math.round(cx - 7 * u);
+  const y = Math.round(cy - 5 * u);
+  ctx.fillStyle = OUTLINE;
+  ctx.fillRect(x - u, y - u, 16 * u, 12 * u);
+  ctx.fillStyle = '#6d4c41';
+  ctx.fillRect(x, y, 14 * u, 10 * u);
+  ctx.fillStyle = '#f3e3bd';
+  ctx.fillRect(x + u, y + u, 12 * u, 8 * u);
+  const ix = x + 2 * u;
+  const iy = y + 2 * u;
+  if (emblem === 'book') {
+    ctx.fillStyle = '#3949ab';
+    ctx.fillRect(ix, iy, 10 * u, 6 * u);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(ix + u, iy + u, 3.5 * u, 4 * u);
+    ctx.fillRect(ix + 5.5 * u, iy + u, 3.5 * u, 4 * u);
+  } else if (emblem === 'key') {
+    ctx.fillStyle = '#d4a017';
+    ctx.fillRect(ix, iy + u, 4 * u, 4 * u);
+    ctx.fillRect(ix + 4 * u, iy + 2.5 * u, 6 * u, u);
+    ctx.fillRect(ix + 8 * u, iy + 3.5 * u, u, 2 * u);
+    ctx.fillRect(ix + 6 * u, iy + 3.5 * u, u, 1.5 * u);
+    ctx.fillStyle = '#f3e3bd';
+    ctx.fillRect(ix + 1.5 * u, iy + 2.5 * u, u, u);
+  } else if (emblem === 'hash') {
+    ctx.fillStyle = '#00838f';
+    ctx.fillRect(ix + 2.5 * u, iy, u, 6 * u);
+    ctx.fillRect(ix + 6 * u, iy, u, 6 * u);
+    ctx.fillRect(ix + u, iy + 1.5 * u, 8 * u, u);
+    ctx.fillRect(ix + u, iy + 4 * u, 8 * u, u);
+  } else if (emblem === 'wheel') {
+    ctx.fillStyle = '#b8860b';
+    ctx.beginPath();
+    ctx.arc(ix + 5 * u, iy + 3 * u, 3 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f3e3bd';
+    ctx.beginPath();
+    ctx.arc(ix + 5 * u, iy + 3 * u, 1.8 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#b8860b';
+    ctx.fillRect(ix + 4.5 * u, iy, u, 6 * u);
+    ctx.fillRect(ix + 2 * u, iy + 2.5 * u, 6 * u, u);
+  } else if (emblem === 'circuit') {
+    ctx.fillStyle = '#00897b';
+    ctx.fillRect(ix, iy + 2.5 * u, 10 * u, u);
+    ctx.fillRect(ix + 3 * u, iy, u, 3 * u);
+    ctx.fillRect(ix + 7 * u, iy + 3 * u, u, 3 * u);
+    ctx.fillStyle = '#f6b400';
+    ctx.fillRect(ix + 2.5 * u, iy, 2 * u, 2 * u);
+    ctx.fillRect(ix + 6.5 * u, iy + 4 * u, 2 * u, 2 * u);
+  } else {
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#1e88e5';
+    ctx.beginPath();
+    ctx.arc(ix + 3.5 * u, iy + 3 * u, 3 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f9a825';
+    ctx.beginPath();
+    ctx.arc(ix + 6.5 * u, iy + 3 * u, 3 * u, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 }
 
 /** Warm torch light and cool crystal and vent light, added on top of the scene. */
