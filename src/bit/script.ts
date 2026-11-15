@@ -68,7 +68,7 @@ const line = (id: string, expression: Expression, text: string, rest: Partial<Bi
 /** Messages that do not depend on where the player is. */
 export const LINES: Script = Object.fromEntries([
   // The welcome: skippable with the close button, replayable from the menu.
-  line('welcome-1', 'happy', 'Welcome to VisuCrypto! I’m Bit. Every locked door here hides something worth learning.', { next: 'welcome-2' }),
+  line('welcome-1', 'happy', 'Welcome to CryptoWorld! I’m Bit. Every locked door here hides something worth learning.', { next: 'welcome-2' }),
   line('welcome-2', 'neutral', 'Walk with WASD or the arrow keys. On a phone, hold the arrow pad.', { next: 'welcome-3' }),
   line('welcome-3', 'curious', 'A gold arrow points to your next goal. Walk up to something that glows and press Space.', { next: 'welcome-4' }),
   line('welcome-4', 'encouraging', 'Stuck or lost? Tap me in the corner any time. I’ll point the way.', {

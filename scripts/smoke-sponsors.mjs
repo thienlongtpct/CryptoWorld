@@ -58,7 +58,7 @@ if (health.data.tinyfish) {
     cookie: sid,
     body: {
       topicId: 'hash',
-      goal: 'Smoke: one SHA-256 digest check source for VisuCrypto deploy verification.',
+      goal: 'Smoke: one SHA-256 digest check source for CryptoWorld deploy verification.',
     },
   });
   if (start.res.status !== 202) throw new Error(`research start ${start.res.status}: ${start.data.error || ''}`);

@@ -242,7 +242,7 @@ test('an expired session can no longer save progress', async () => {
 });
 
 test('the file store keeps an account after it is opened again', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'visucrypto-'));
+  const dir = mkdtempSync(join(tmpdir(), 'cryptoworld-'));
   const path = join(dir, 'accounts.json');
   const created = await createFileStore(path).registerUser({
     id: 'u1',
@@ -304,7 +304,7 @@ test('the Lambda entry answers health before it touches an account', async () =>
 });
 
 test('the local server registers a learner over HTTP', { timeout: 30_000 }, async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'visucrypto-'));
+  const dir = mkdtempSync(join(tmpdir(), 'cryptoworld-'));
   const proc = spawn(process.execPath, ['--experimental-strip-types', 'server/index.mjs'], {
     cwd: root,
     env: { ...process.env, PORT: '0', ACCOUNTS_PATH: join(dir, 'accounts.json') },

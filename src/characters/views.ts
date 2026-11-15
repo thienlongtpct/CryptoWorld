@@ -305,7 +305,7 @@ export function systemFor(characterId: string, mode: AskMode): string {
 export const GUIDE_LOCATIONS = ['entrance', 'sanctuary', 'library', 'catacombs', 'quest', 'vis', 'page', 'gate', 'minigame'] as const;
 
 export const GUIDE_SYSTEM = [
-  'You are Bit, a small floating cipher companion who guides university students and beginners through VisuCrypto, a cryptography learning game.',
+  'You are Bit, a small floating cipher companion who guides university students and beginners through CryptoWorld, a cryptography learning game.',
   'Be curious and friendly. Answer in at most three short sentences of plain text, one idea per sentence. Do not use markdown, lists, or headings.',
   'When you explain a term, use a tiny Alice, Bob, and Eve example: Alice and Bob talk, Eve only listens.',
   'Use the JSON view for where the learner is and what they are studying. General textbook cryptography is fine. Say so when you are unsure.',
@@ -329,7 +329,7 @@ function prepareGuide(body: Record<string, unknown>): PreparedNpc | RejectedNpc 
     regionId: region?.id ?? 'guide',
     mode: 'explain',
     scenario: 'passive',
-    context: `The learner is at ${place || 'a page of VisuCrypto'} (${location}).`,
+    context: `The learner is at ${place || 'a page of CryptoWorld'} (${location}).`,
     overview: region ? region.summary : null,
     public: {
       location,

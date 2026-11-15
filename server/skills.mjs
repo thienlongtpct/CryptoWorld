@@ -7,7 +7,7 @@ import { listPublicAssessments } from './assessments.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const DISCLAIMER =
-  'This is a VisuCrypto learning record from checked practice on this account. It is not a professional certification, employment credential, or claim about job outcomes.';
+  'This is a CryptoWorld learning record from checked practice on this account. It is not a professional certification, employment credential, or claim about job outcomes.';
 
 /** Skills tied to the Verify a software download practical path. */
 export const SKILL_DEFS = [

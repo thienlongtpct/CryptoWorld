@@ -45,7 +45,7 @@ export function Header() {
   return (
     <header className="bar">
       <div className="uni-top">
-        <a className="uni-logo" href="#world" aria-label="Crypto Dungeon">VISU<span>CRYPTO</span></a>
+        <a className="uni-logo" href="#world" aria-label="Crypto Dungeon">CRYPTO<span>WORLD</span></a>
         <SunhacksMark tone="dark" />
         <nav className="sitenav" aria-label="Site">
           {NAV.map(item => <a key={item.id} href={item.href} className={navOn(route, item.id) ? 'on' : ''} aria-current={navOn(route, item.id) ? 'page' : undefined}>{item.label}</a>)}

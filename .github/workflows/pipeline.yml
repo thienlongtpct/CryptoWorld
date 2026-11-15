@@ -15,13 +15,14 @@ permissions:
   actions: write
 
 concurrency:
-  group: visucrypto-${{ github.workflow }}-${{ github.ref }}
+  group: cryptoworld-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   check:
     name: Test and build
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.56 cannot install Chromium on ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +46,22 @@ jobs:
 
       - name: Check the built page
         run: node scripts/check-dist.mjs
+
+      - name: Install Chromium for the end-to-end test
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end demo walk (fake sponsors)
+        run: npx playwright test
+
+      - name: Keep the e2e trace when it fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
       - name: Audit shipped dependencies
         run: npm audit --omit=dev --audit-level=high
@@ -118,7 +135,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'us-west-2' }}
-          role-session-name: visucrypto-deploy
+          role-session-name: cryptoworld-deploy
 
       - name: Deploy
         working-directory: infra

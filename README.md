@@ -1,6 +1,8 @@
-# VisuCrypto
+# CryptoWorld
 
 A project for [sunhacks 9.0](https://sunhacks.io/) (November 14–15, 2026, Student Pavilion, ASU Tempe).
+
+Live at **[www.cryptoworld.wiki](https://www.cryptoworld.wiki)**.
 
 Step-by-step animated visualizations of cryptography, from classical ciphers to the building blocks of secure two-party computation (oblivious transfer, OPRF, OKVS, VOLE, PSI, PSU), in the style of [VisuAlgo](https://visualgo.net): pick a topic, enter your own inputs, and play the protocol one line of pseudo-code at a time. Behind the visualizations sit a 48-term dictionary, PSI and PSU paper libraries, and a bibliography.
 
@@ -100,7 +102,29 @@ Opens a hot-reloading dev server at `http://localhost:8765/` and the account ser
 | `npm run ci` | Typecheck, tests, production build, and the self-contained page check |
 | `npm run build` | Type-check, then build `dist/index.html`: one file with all JS and CSS inlined |
 | `npm run preview` | Serve the built `dist/` locally |
+| `npm run e2e` | Build, then walk the 3-minute demo in Chromium against fake sponsors (see [End-to-end demo test](#end-to-end-demo-test)) |
+| `npm run e2e:live` | The same walk against a deployed site, with `E2E_BASE_URL` set |
 | `npm run artifact` | Build, then write `dist/artifact.html` (the same page without `<html>/<head>/<body>` wrappers) for publishing as a Claude artifact |
+
+### End-to-end demo test
+
+`e2e/demo.spec.mjs` is one Playwright test that follows [DEMO_VIDEO.md](DEMO_VIDEO.md) scene by scene: sign up, step through oblivious transfer and switch to Alice's view, sort the Bridge board (one wrong row first, to see the nudge), ask the Gemini tutor, forge the seal in the Maritime workbench, run the Research Desk and wait for the daily news watch, then check the Journal's Skills and Challenges tabs.
+
+`npm run e2e` builds the page and starts `e2e/server.mjs`. That harness serves `dist/index.html` and the real account API on one origin, with an in-memory store and fake Gemini, TinyFish and Maritime endpoints at the HTTP boundary, so the real adapters and the lab worker still run. The fake Maritime sandbox runs the learner's Python with `python3`. Nothing leaves the machine: any other outbound request fails. At the end the test reads `/__e2e/calls` to confirm every sponsor endpoint the demo mentions was hit, and that the tutor's prompt held only the permitted view.
+
+The first time, install the browser:
+
+```bash
+npx playwright install chromium
+```
+
+Run against the live site, with the real sponsors (it creates a new `e2e_…` account each run, and spends one Maritime run and one TinyFish run):
+
+```bash
+E2E_BASE_URL=https://www.cryptoworld.wiki npm run e2e:live
+```
+
+`E2E_VIDEO=1` records the whole walk to `test-results/`, which works as a rough cut for the demo video. On failure, open the trace with `npx playwright show-trace test-results/<test>/trace.zip`.
 
 `dist/index.html` works on its own: open it from disk or upload it to any static host (GitHub Pages, Netlify, S3, a university web space). It loads nothing except Google Fonts and the official MLH trust badge, which MLH hosts. It falls back to system fonts without the fonts.
 
@@ -398,7 +422,7 @@ On plain Postgres the same names exist as an ordinary table and view. `GET /api/
 `test/store-contract.test.mjs` runs one behaviour suite on the memory store, and also on Postgres when `TEST_TIGER_DATABASE_URL` points at a database it may wipe:
 
 ```bash
-TEST_TIGER_DATABASE_URL=postgres://localhost:5432/visucrypto_test npm test
+TEST_TIGER_DATABASE_URL=postgres://localhost:5432/cryptoworld_test npm test
 ```
 
 Destroying the stack leaves the account table and the site bucket in the account. The table holds password hashes, learning progress, and skills evidence.

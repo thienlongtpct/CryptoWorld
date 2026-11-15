@@ -7,7 +7,7 @@ const bytes = statSync(path).size;
 const problems = [];
 
 if (!html.includes('id="root"')) problems.push('dist/index.html has no #root');
-if (!html.includes('VisuCrypto')) problems.push('dist/index.html lost the VisuCrypto title');
+if (!html.includes('CryptoWorld')) problems.push('dist/index.html lost the CryptoWorld title');
 if (html.includes('/src/main.tsx')) problems.push('dist/index.html still points at the dev entry');
 if (!/<script[\s>]/.test(html)) problems.push('dist/index.html has no inlined script');
 if (bytes < 20_000) problems.push(`dist/index.html is only ${bytes} bytes`);

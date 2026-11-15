@@ -20,7 +20,7 @@ export function createLocalLabRunner({ spawnImpl = spawn, timeoutMs = LAB_CMD_TI
   return {
     kind: 'local',
     async run(code) {
-      const dir = mkdtempSync(join(tmpdir(), 'visucrypto-lab-'));
+      const dir = mkdtempSync(join(tmpdir(), 'cryptoworld-lab-'));
       const file = join(dir, 'learner.py');
       writeFileSync(file, code, 'utf8');
       try {
@@ -116,7 +116,7 @@ export async function processLabJob({ store, maritime, runner, jobId, now = Date
         throw Object.assign(new Error('Maritime is not configured.'), { status: 503 });
       }
       const box = await maritime.createEphemeral({
-        name: `visucrypto-lab-${job.id.slice(0, 12)}`,
+        name: `cryptoworld-lab-${job.id.slice(0, 12)}`,
         idleMinutes: 2,
         timeLimitMinutes: 10,
         size: 'small',

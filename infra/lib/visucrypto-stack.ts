@@ -176,7 +176,7 @@ export class VisuCryptoStack extends cdk.Stack {
     };
 
     const api = new lambda.Function(this, 'AccountsApi', {
-      description: 'VisuCrypto registration, sessions, learning progress, research, and lab enqueue.',
+      description: 'CryptoWorld registration, sessions, learning progress, research, and lab enqueue.',
       runtime: lambda.Runtime.NODEJS_24_X,
       architecture: lambda.Architecture.ARM_64,
       handler: 'server/lambda.handler',
@@ -197,7 +197,7 @@ export class VisuCryptoStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
     const labWorker = new lambda.Function(this, 'LabWorker', {
-      description: 'VisuCrypto Maritime lab runner (SQS).',
+      description: 'CryptoWorld Maritime lab runner (SQS).',
       runtime: lambda.Runtime.NODEJS_24_X,
       architecture: lambda.Architecture.ARM_64,
       handler: 'server/lab-worker-lambda.handler',
@@ -254,7 +254,7 @@ export class VisuCryptoStack extends cdk.Stack {
     const apiDomain = `${httpApi.apiId}.execute-api.${this.region}.amazonaws.com`;
     const domain = customDomain(this);
     const distribution = new cloudfront.Distribution(this, 'SiteCdn', {
-      comment: 'VisuCrypto',
+      comment: 'CryptoWorld',
       ...(domain ? {
         domainNames: domain.domains,
         certificate: acm.Certificate.fromCertificateArn(this, 'SiteCertificate', domain.certificateArn),
@@ -301,7 +301,7 @@ export class VisuCryptoStack extends cdk.Stack {
       const qualifier = this.node.tryGetContext('@aws-cdk/core:bootstrapQualifier') || 'hnb659fds';
       const role = new iam.Role(this, 'GitHubDeploy', {
         roleName: 'visucrypto-github-deploy',
-        description: 'Assumed by GitHub Actions on main to deliver VisuCrypto.',
+        description: 'Assumed by GitHub Actions on main to deliver CryptoWorld.',
         maxSessionDuration: cdk.Duration.hours(1),
         // GitHub may issue either repo:OWNER/NAME:ref:... or repo:OWNER@id/NAME@id:ref:...
         assumedBy: new iam.WebIdentityPrincipal(provider.openIdConnectProviderArn, {

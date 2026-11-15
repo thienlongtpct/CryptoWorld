@@ -4,7 +4,7 @@ import { VisuCryptoStack } from '../lib/visucrypto-stack';
 
 const app = new cdk.App();
 new VisuCryptoStack(app, 'VisuCrypto', {
-  description: 'VisuCrypto site, account API, and GitHub delivery role.',
+  description: 'CryptoWorld site, account API, and GitHub delivery role.',
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION,

@@ -1,5 +1,5 @@
 {
-  "name": "visucrypto-infra",
+  "name": "cryptoworld-infra",
   "private": true,
   "scripts": {
     "synth": "cdk synth",

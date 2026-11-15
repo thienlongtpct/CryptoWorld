@@ -2,13 +2,6 @@ import badge from '../assets/sunhacks-badge.webp';
 
 const HREF = 'https://sunhacks.io/';
 
-// The tab icon follows the same badge the rest of the site uses.
-const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]') ?? document.createElement('link');
-icon.rel = 'icon';
-icon.type = 'image/webp';
-icon.href = badge;
-if (!icon.parentElement) document.head.appendChild(icon);
-
 /** sunhacks 9.0 mark. `banner` is the home-page credit; `chip` fits a toolbar. */
 export function SunhacksMark({ variant = 'chip', tone = 'light' }: { variant?: 'chip' | 'banner'; tone?: 'light' | 'dark' }) {
   const img = <img src={badge} alt="" />;
