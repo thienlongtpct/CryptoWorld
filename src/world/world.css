@@ -716,3 +716,226 @@ html:has(.cw-layer) { scroll-padding-top: calc(var(--cw-strip) + 120px); }
 .cw-x:focus-visible { outline: 3px solid #7fdbff; outline-offset: 2px; }
 .cw-dialog:focus { outline: none; }
 .cw-dialog:focus-visible { outline: 3px solid #7fdbff; outline-offset: 2px; }
+
+/* Landing: the first screen, over the live world. */
+.lp {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow: auto;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(246, 212, 107, 0.18), transparent 60%),
+    rgba(18, 14, 12, 0.62);
+}
+
+.lp-card {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  width: min(760px, 100%);
+  padding: 22px 24px 20px;
+  border: 3px solid #111;
+  background: #fffaf0;
+  box-shadow: 0 6px 0 #111, 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.lp-card p { margin: 0; }
+
+.lp-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lp-tag {
+  padding: 2px 8px;
+  border: 1.5px solid #8a2b06;
+  color: #8a2b06;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.lp-kicker {
+  font-family: var(--f-pixel);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #6d4c41;
+  text-transform: uppercase;
+}
+
+.lp-title {
+  margin: -4px 0 0;
+  font-family: var(--f-pixel);
+  font-size: clamp(34px, 7vw, 56px);
+  font-weight: 400;
+  line-height: 0.95;
+  color: #f6d46b;
+  text-shadow: 3px 3px 0 #111, -1px -1px 0 #111, 1px -1px 0 #111, -1px 1px 0 #111, 0 0 18px rgba(246, 212, 107, 0.45);
+  animation: lp-float 3.2s ease-in-out infinite;
+}
+
+@keyframes lp-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.lp-lede { font-size: 1.02rem; line-height: 1.55; max-width: 62ch; }
+
+.lp-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-steps li {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 10px;
+  border: 2px solid #111;
+  background: #fff;
+  position: relative;
+}
+
+.lp-steps li:not(:last-child)::after {
+  content: '▸';
+  position: absolute;
+  right: -10px;
+  top: 18px;
+  z-index: 1;
+  color: #111;
+  font-size: 14px;
+}
+
+.lp-steps b { display: flex; align-items: center; gap: 6px; font-family: var(--f-pixel); font-weight: 400; font-size: 14px; }
+.lp-steps p { font-size: 0.86rem; line-height: 1.4; color: #3e3a36; }
+
+.lp-n {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  background: #111;
+  color: #f6d46b;
+  font-size: 11px;
+}
+
+.lp-icon {
+  display: grid;
+  grid-template-columns: repeat(8, 4px);
+  width: 32px;
+}
+
+.lp-icon i { display: block; width: 4px; height: 4px; }
+
+.lp-cta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.lp-btn {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 2px solid #111;
+  background: #fff;
+  color: #111;
+  font-family: var(--f-pixel);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #111;
+  transition: transform 0.06s;
+}
+
+.lp-btn.primary { background: #f6d46b; font-size: 15px; padding: 8px 22px; }
+.lp-btn.ghost { box-shadow: none; }
+.lp-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.lp-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #111; }
+.lp-btn:disabled { opacity: 0.55; cursor: default; }
+.lp-btn:focus-visible { outline: 3px solid #7fdbff; outline-offset: 2px; }
+
+.lp-note { font-size: 0.85rem; color: #5d4e45; }
+
+.lp-more { border-top: 2px dashed #d7c7a6; padding-top: 10px; }
+.lp-more summary { cursor: pointer; font-weight: 700; font-size: 0.92rem; }
+.lp-more[open] summary { margin-bottom: 10px; }
+
+.lp-places {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.86rem;
+}
+
+.lp-places li { display: grid; grid-template-columns: 12px auto; column-gap: 8px; align-items: baseline; }
+.lp-places span:last-child { grid-column: 2; color: #5d4e45; }
+.lp-swatch { width: 12px; height: 12px; border: 1.5px solid #111; align-self: center; }
+
+.lp-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; font-size: 0.85rem; }
+.lp-keys kbd {
+  padding: 1px 6px;
+  border: 1.5px solid #111;
+  border-bottom-width: 3px;
+  background: #fff;
+  font-family: var(--f-mono);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 720px) {
+  .lp { place-items: start center; padding: 10px; }
+  .lp-card { padding: 16px 14px 14px; gap: 12px; }
+  .lp-steps { grid-template-columns: 1fr; }
+  .lp-steps li { grid-template-columns: 32px 1fr; align-items: center; }
+  .lp-steps li:not(:last-child)::after { content: none; }
+  .lp-places { grid-template-columns: 1fr; }
+  .lp-cta .lp-btn { flex: 1 1 auto; }
+  /* On a phone the buttons come straight after the introduction. */
+  .lp-cta { order: 1; }
+  .lp-note { order: 2; }
+  .lp-steps { order: 3; gap: 6px; }
+  .lp-more { order: 4; }
+  .lp-steps li { padding: 8px; gap: 2px 10px; }
+  .lp-steps p { font-size: 0.82rem; }
+  .lp-lede { font-size: 0.95rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-title { animation: none; }
+  .lp-btn { transition: none; }
+}
+
+/* HUD: where you are, your progress, and the next step. */
+.cw-where { display: grid; gap: 3px; min-width: 0; }
+.cw-where p { margin: 0; }
+.cw-place { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 0.85rem; }
+.cw-place span:not(.cw-pill) { color: #6d4c41; }
+.cw-pill { padding: 0 6px; border: 1.5px solid #111; background: #fff; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.cw-pill.guest { background: #ffe0b2; }
+.cw-goal {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.cw-goal span {
+  flex: none;
+  padding: 0 5px;
+  background: #111;
+  color: #f6d46b;
+  font-family: var(--f-pixel);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+.cw-reduced .lp-title { animation: none; }

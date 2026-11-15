@@ -72,7 +72,7 @@ test('Mallory is refused until the attack simulation is selected', async () => {
 
 test('Gemini gets a low thinking level, and a cut-off answer is reported instead of shown', async () => {
   const { answerNpc } = await import('../server/npc.mjs');
-  const body = { characterId: 'alice', regionId: 'sanctuary', mode: 'explain', scenario: 'passive', question: 'What is a private input?' };
+  const body = { characterId: 'peggy', regionId: 'sanctuary', mode: 'explain', scenario: 'passive', question: 'What does zero knowledge hide?' };
   const realFetch = globalThis.fetch;
   let sent;
   const reply = (finishReason, parts) => async (_url, init) => {

@@ -247,7 +247,7 @@ export function ChallengePanel({
 function guideFor(id: string) {
   if (id === 'caesar') return { ...CHARACTER_BY_ID.caesar, regionId: 'catacombs' };
   if (id === 'xor') return { ...CHARACTER_BY_ID.eve, regionId: 'catacombs' };
-  if (id === 'vault') return { ...CHARACTER_BY_ID.alice, regionId: 'catacombs' };
+  if (id === 'vault') return { ...CHARACTER_BY_ID.daemen, regionId: 'catacombs' };
   if (id === 'wire') return { ...CHARACTER_BY_ID.eve, regionId: 'bridge' };
   return undefined;
 }

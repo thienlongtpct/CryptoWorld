@@ -129,7 +129,7 @@ test('walls, building fronts, and NPCs stop the body before the sprite overlaps 
   const atWall = move(room.map, 2.5, 7.5, -5, 0);
   assert.ok(atWall.x >= 1 + 0.34 - 1e-9, `stopped at ${atWall.x}`);
   // An NPC stops the player instead of being walked through.
-  const alice = room.spots.find(spot => spot.id === 'alice-sanctuary')!;
+  const alice = room.spots.find(spot => spot.id === 'peggy-sanctuary')!;
   const blocked = move(room.map, alice.x, alice.y + 2, 0, -2, undefined, blockersOf(room));
   assert.ok(blocked.y > alice.y + 0.3, `walked into Alice at ${blocked.y}`);
   // A building on the grounds is solid apart from its door.
@@ -245,5 +245,35 @@ test('walking at a door slightly off-centre slides into the doorway instead of c
     for (let i = 0; i < 30; i++) at = move(grounds.map, at.x, at.y, 0, -0.1);
     assert.ok(at.y < door.y + 0.2, `stuck below the door at offset ${offset}: y=${at.y}`);
     assert.ok(Math.abs(at.x - door.x) <= 0.5 - 0.34 + 1e-9, `body sticks out of the doorway: x=${at.x}`);
+  }
+});
+
+test('the next goal always names a spot that exists in the current room', async () => {
+  const { nextGoal } = await import('../src/dungeon/rooms.ts');
+  const states: [string | null, Record<string, string>][] = [
+    [null, {}],
+    ['ada', {}],
+    ['ada', { 'dungeon-caesar': 'done' }],
+    ['ada', { 'dungeon-caesar': 'done', 'dungeon-xor': 'done', 'dungeon-vault': 'done' }],
+    ['ada', { 'dungeon-caesar': 'done', 'dungeon-xor': 'done', 'dungeon-vault': 'done', 'dungeon-wire': 'done' }],
+  ];
+  for (const id of ROOM_LIST) {
+    for (const [user, progress] of states) {
+      const goal = nextGoal(id, user, progress);
+      assert.ok(goal.text.length > 0);
+      if (goal.target) assert.ok(ROOMS[id].spots.some(spot => spot.id === goal.target), `${id}: ${goal.target} is not a spot`);
+    }
+  }
+  assert.equal(nextGoal('grounds', null, {}).target, 'to-sanctuary');
+  assert.equal(nextGoal('sanctuary', 'ada', {}).target, 'to-catacombs');
+});
+
+test('Alice and Bob appear once, and every NPC in a room can be asked a question', () => {
+  const placed = Object.values(ROOMS).flatMap(room => room.spots.filter(spot => spot.kind === 'person').map(spot => ({ room: room.id, spot })));
+  assert.equal(placed.filter(item => item.spot.characterId === 'alice').length, 1);
+  assert.equal(placed.filter(item => item.spot.characterId === 'bob').length, 1);
+  for (const { room, spot } of placed) {
+    const prepared = prepareNpc({ characterId: spot.characterId, regionId: spot.regionId, mode: 'explain', scenario: 'passive', question: 'Hello?' });
+    assert.ok(prepared.ok, `${room}: ${spot.id} cannot be asked (${prepared.ok ? '' : prepared.error})`);
   }
 });

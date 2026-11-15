@@ -26,6 +26,8 @@ const notice = {
   caesar: portrayalNotice('Julius Caesar'),
   vigenere: portrayalNotice('Blaise de Vigenère'),
   kindi: portrayalNotice('Al-Kindi'),
+  shamir: portrayalNotice('Adi Shamir'),
+  daemen: portrayalNotice('Joan Daemen'),
 };
 
 function grid(rows: string[]): Tile[][] {
@@ -177,28 +179,29 @@ export const ROOMS: Record<string, Room> = {
     objective: 'Follow the paths. Each building is a different part of the library, and every path ends at a door.',
     spots: [
       person({
-        id: 'alice-grounds',
-        name: 'Alice',
+        id: 'trent-grounds',
+        name: 'Trent',
         x: 20.5,
         y: 11.5,
         kind: 'person',
-        characterId: 'alice',
+        characterId: 'trent',
         regionId: 'grounds',
         place: 'Library grounds',
-        guest: 'I am Alice. Follow the winding path north to the sanctuary. The other buildings are the library: ciphers, hashes, public keys, computation, and private sets. Each one looks different, and a path leads to every door. You can look around before you log in.',
-        signed: 'I am Alice. The dirt path leads to the sanctuary and the Cipher Catacombs. The side buildings are the five areas of the library.',
+        guest: 'I am Trent. In protocol stories I am the trusted third party, the one both sides agree to rely on. Here I only vouch for directions: the winding path north ends at the Sanctuary, and every branch ends at a library building. You can look around before you log in.',
+        signed: 'I am Trent. The Sanctuary to the north leads to the Catacombs and the Key Exchange Bridge. Ask me when a protocol needs a trusted party, and when it does not.',
       }),
       person({
-        id: 'bob-grounds',
-        name: 'Bob',
-        x: 15.5,
+        id: 'shamir-grounds',
+        name: 'Adi Shamir',
+        x: 12.5,
         y: 12.5,
         kind: 'person',
-        characterId: 'bob',
+        characterId: 'shamir',
         regionId: 'grounds',
         place: 'Library grounds',
-        guest: 'I am Bob. Every path branch ends at a door. The keep with the flag is the key citadel, the pillared temple is the cipher court, the dark crypt is for hashes, the log cabin is the circuit shop, and the greenhouse is the overlap garden. The big hall at the top is the sanctuary.',
-        signed: 'I am Bob. I can point you to the area that matches a topic. I still keep my own inputs.',
+        topic: 'ss',
+        guest: `${notice.shamir} The cipher court beside this path holds the secret-sharing lesson from the 1979 paper How to Share a Secret: split a secret into shares so that any threshold of them rebuilds it, and fewer reveal nothing about it.`,
+        signed: `${notice.shamir} Ask what a threshold means, or open the secret-sharing visualization.`,
       }),
       {
         id: 'to-sanctuary',
@@ -207,7 +210,7 @@ export const ROOMS: Record<string, Room> = {
         y: 5.5,
         kind: 'door',
         to: 'sanctuary',
-        mark: 'ENTER',
+        mark: 'SANCTUARY',
         guest: 'The dirt path ends at the library door.',
         signed: 'The dirt path ends at the sanctuary door.',
       },
@@ -299,28 +302,30 @@ export const ROOMS: Record<string, Room> = {
     objective: 'The grounds buildings are the library. The south door is the Cipher Catacombs. The east door is the Key Exchange Bridge.',
     spots: [
       person({
-        id: 'alice-sanctuary',
-        name: 'Alice',
+        id: 'peggy-sanctuary',
+        name: 'Peggy',
         x: 4.5,
         y: 3.5,
         kind: 'person',
-        characterId: 'alice',
+        characterId: 'peggy',
         regionId: 'sanctuary',
         place: 'Library Sanctuary',
-        guest: 'I am Alice. This sanctuary is safe. The south door leads to the Cipher Catacombs. The five library areas are the buildings outside.',
-        signed: 'I am Alice. I can point you outside to a library area, or south to the dungeon door. Logging in lets me answer with Gemini.',
+        topic: 'zk',
+        guest: 'I am Peggy, the prover. I can convince Victor that I know a secret without showing it to him. The zero-knowledge lesson plays rounds of that proof. The south door leads to the Cipher Catacombs.',
+        signed: 'I am Peggy. Ask what a prover must be able to do, or open the zero-knowledge lesson.',
       }),
       person({
-        id: 'bob-sanctuary',
-        name: 'Bob',
+        id: 'victor-sanctuary',
+        name: 'Victor',
         x: 13.5,
         y: 3.5,
         kind: 'person',
-        characterId: 'bob',
+        characterId: 'victor',
         regionId: 'sanctuary',
         place: 'Library Sanctuary',
-        guest: 'I am Bob. The south door is the Cipher Catacombs. The library areas are outside, and each one has its own look.',
-        signed: 'I am Bob. I keep my own inputs. I can tell you which outside building matches a topic.',
+        topic: 'zk',
+        guest: 'I am Victor, the verifier. I send Peggy random challenges. Each one she answers makes cheating less likely, and I end up convinced without learning her secret.',
+        signed: 'I am Victor. Ask what a verifier checks, and what a verifier never learns.',
       }),
       person({
         id: 'shannon',
@@ -688,16 +693,17 @@ export const ROOMS: Record<string, Room> = {
     objective: 'XOR the bytes, then undo the stated shift.',
     spots: [
       person({
-        id: 'alice-catacombs',
-        name: 'Alice',
+        id: 'daemen-catacombs',
+        name: 'Joan Daemen',
         x: 3.5,
         y: 1.5,
         kind: 'person',
-        characterId: 'alice',
+        characterId: 'daemen',
         regionId: 'catacombs',
         place: 'Cipher Catacombs',
-        guest: 'I am Alice. This last gate uses the XOR and the shift you already practiced. The order is written on the gate.',
-        signed: 'I am Alice. Do the XOR first, then the shift. I do not keep a secret input on this gate.',
+        topic: 'blockcipher',
+        guest: `${notice.daemen} This last gate stacks two simple steps in a stated order: XOR first, then a shift. Block ciphers also repeat simple steps in a fixed order. AES, the standard in FIPS 197 built from Rijndael, runs rounds, and one step of each round XORs a round key into the data.`,
+        signed: `${notice.daemen} Do the XOR first, then undo the shift. Ask why the order matters, or open the block-cipher visualization.`,
       }),
       {
         id: 'final-back',
@@ -968,3 +974,52 @@ export function step(room: Room, x: number, y: number, dx: number, dy: number, p
 /** Solved Catacomb gates. The bridge board is a separate wing and does not count toward the treasure room. */
 export const SOLVED_COUNT = (progress: Record<string, string>) =>
   CATACOMB_GATES.filter(id => challengeDone(progress, id)).length;
+
+export interface Goal {
+  /** One short instruction for the HUD. */
+  text: string;
+  /** The spot in the current room to mark, when the next step is in this room. */
+  target?: string;
+}
+
+/** What to do next, from where the player is, whether they are logged in, and what they solved. */
+export function nextGoal(roomId: string, user: string | null, progress: Record<string, string>): Goal {
+  const catacombsDone = SOLVED_COUNT(progress) === CATACOMB_GATES.length;
+  const bridgeDone = challengeDone(progress, 'wire');
+  const gate = (id: string, spot: string, name: string): Goal => (challengeDone(progress, id)
+    ? { text: `${name} is open. Go through.`, target: spot }
+    : { text: `Solve the ${name}. Open it to read the evidence.`, target: spot });
+  switch (roomId) {
+    case 'grounds':
+      if (!user) return { text: 'Follow the path north to the Sanctuary.', target: 'to-sanctuary' };
+      if (!catacombsDone) return { text: 'Go to the Sanctuary. The Catacombs start there.', target: 'to-sanctuary' };
+      if (!bridgeDone) return { text: 'Go to the Sanctuary, then east to the Key Exchange Bridge.', target: 'to-sanctuary' };
+      return { text: 'Everything is open. Step into a building to play a lesson.', target: 'to-ciphers' };
+    case 'sanctuary':
+      if (!user) return { text: 'Talk to Shannon, then log in to enter the Catacombs.', target: 'shannon' };
+      if (!catacombsDone) return { text: 'Take the south door into the Cipher Catacombs.', target: 'to-catacombs' };
+      if (!bridgeDone) return { text: 'Take the east door to the Key Exchange Bridge.', target: 'to-bridge' };
+      return { text: 'Every gate is open. The library buildings are outside.', target: 'to-grounds' };
+    case 'hall':
+      return { text: 'Head east to the Shift gate.', target: 'hall-forward' };
+    case 'caesar':
+      return gate('caesar', 'caesar-gate', 'Shift gate');
+    case 'xor':
+      return gate('xor', 'xor-gate', 'Byte gate');
+    case 'final':
+      return gate('vault', 'final-gate', 'Combined gate');
+    case 'vault':
+      return { text: 'Open the chest to review what you learned.', target: 'treasure' };
+    case 'bridge':
+      return bridgeDone
+        ? { text: 'The bridge is open. Cross and talk to Bob.', target: 'bob-bridge-room' }
+        : { text: 'Sort the values on the bridge gate: who holds each one?', target: 'bridge-gate' };
+    default: {
+      const room = ROOMS[roomId];
+      const shelf = room?.spots.find(spot => spot.kind === 'shelf');
+      return shelf
+        ? { text: 'Browse the shelf to open a visualization.', target: shelf.id }
+        : { text: room?.objective ?? 'Explore.' };
+    }
+  }
+}

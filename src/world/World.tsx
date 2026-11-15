@@ -10,6 +10,7 @@ import {
   loadPlace,
   loadResume,
   markWelcome,
+  nextGoal,
   homePlace,
   resolvePlace,
   roomOf,
@@ -28,6 +29,7 @@ import {
 } from '../dungeon/rooms';
 import { TOPIC_BY_ID, type Topic } from '../vis/registry';
 import { Directory, Portrait, Talk } from './dialogue';
+import { Landing } from './Landing';
 import { paint } from './draw';
 import type { Spot } from './map';
 import './world.css';
@@ -124,6 +126,9 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   uiLock.current = modal || authOpen || layered;
   const reduced = motion === 'reduce' || (motion === 'system' && reducedSystem);
   const solved = SOLVED_COUNT(merged);
+  const goal = nextGoal(roomId, user, merged);
+  const goalSpotRef = useRef<Spot | null>(null);
+  goalSpotRef.current = goal.target ? room.spots.find(spot => spot.id === goal.target) ?? null : null;
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -340,6 +345,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
             insetBottom,
             time: now,
             reduced,
+            goal: goalSpotRef.current,
           });
         }
       }
@@ -448,20 +454,27 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
       </nav>
     )}
     {layered && <div className="cw-layer">{layer}</div>}
-    <div className={`cw${challengeId ? ' cw-encounter' : ''}`} hidden={layered}>
+    <div className={`cw${challengeId ? ' cw-encounter' : ''}${reduced ? ' cw-reduced' : ''}`} hidden={layered}>
       <div className="cw-body" ref={bodyRef}>
         <div className="cw-stage">
           <canvas ref={canvasRef} aria-hidden="true" />
           <header className="cw-top">
             <div className="cw-identity">
               <Portrait portrait={PLAYER} />
-              <div>
+              <div className="cw-where">
                 <h1 className="cw-title">Crypto Dungeon</h1>
-                <p>{room.wing} · {room.name}</p>
-                <p>{room.id === 'grounds' ? 'Outside' : room.entry === 'open' ? 'Hub' : room.wing === 'Cipher Catacombs' ? `Gates ${solved}/3` : bridgeLine(merged)}</p>
+                <p className="cw-place">
+                  <b>{room.name}</b>
+                  {room.wing !== room.name && room.wing !== 'Outside' && <span>{room.wing}</span>}
+                  {user
+                    ? <span className="cw-pill">Gates {solved}/3 · Bridge {merged[challengeItemId('wire')] === 'done' ? 'open' : 'locked'}</span>
+                    : <span className="cw-pill guest">Guest</span>}
+                </p>
+                <p className="cw-goal"><span>Next</span>{goal.text}</p>
               </div>
             </div>
             <div className="cw-actions cw-inline">
+              <button type="button" className="btn ghost" onClick={() => setWelcome(true)}>Guide</button>
               <button type="button" className="btn ghost" onClick={() => { setTalk(null); setJournal(false); setListOpen(true); }}>Map</button>
               <button type="button" className="btn ghost" onClick={() => setSettings(true)}>Settings</button>
               {ready && !user && <button type="button" className="btn" onClick={() => openAuth('signin')}>Log in</button>}
@@ -520,10 +533,14 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
       <p className="cw-live" aria-live="polite">{status}</p>
       {ready && !online && !user && <p className="cw-offline" role="status">The account server is not running. Start it with npm run server.</p>}
       {welcome && (
-        <Panel title="Crypto Dungeon" closeLabel="Start exploring" focusClose onClose={() => { markWelcome(); setWelcome(false); }}>
-          <p>You start outside. Follow the dirt path to the sanctuary door. Walking up to a person opens their dialogue. The pad, arrow keys, or WASD move you. Space uses a door or a gate.</p>
-          <p>Each side building is one area of the library, and each room looks different. The Cipher Catacombs is through the sanctuary. Guests can look around. Logging in opens the dungeon, the lessons, and Gemini.</p>
-        </Panel>
+        <Landing
+          user={user}
+          ready={ready}
+          onStart={() => { markWelcome(); setWelcome(false); setStatus(goal.text); }}
+          onLogin={() => { markWelcome(); setWelcome(false); openAuth('signin'); }}
+          onRegister={() => { markWelcome(); setWelcome(false); openAuth('register'); }}
+          onBrowse={() => { markWelcome(); setWelcome(false); setShelfId(''); setQuery(''); setCatalog(true); }}
+        />
       )}
       {talk && (
         <Talk
@@ -619,10 +636,6 @@ function promptFor(spot: Spot, user: string | null, progress: Record<string, str
   if (spot.kind === 'door' && spot.to && !canEnter(spot.to, user, progress)) return `${spot.name} is locked.`;
   if (spot.kind === 'future') return `${spot.name} is not open.`;
   return `Near ${spot.name}.`;
-}
-
-function bridgeLine(progress: Record<string, string>): string {
-  return progress[challengeItemId('wire')] === 'done' ? 'Bridge gate open' : 'Bridge gate locked';
 }
 
 function buttonFor(spot: Spot, user: string | null, progress: Record<string, string>): string {

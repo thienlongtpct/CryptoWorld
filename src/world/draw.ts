@@ -8,6 +8,8 @@ import skeletonUrl from '../assets/pixel-crawler/people/skeleton.png';
 import archerUrl from '../assets/pixel-crawler/people/archer.png';
 import warriorUrl from '../assets/pixel-crawler/people/warrior.png';
 import mageUrl from '../assets/pixel-crawler/people/mage.png';
+import rogueUrl from '../assets/pixel-crawler/people/rogue.png';
+import wizardUrl from '../assets/pixel-crawler/people/wizard.png';
 import aliceUrl from '../assets/pixel-crawler/people/alice.png';
 import bobUrl from '../assets/pixel-crawler/people/bob.png';
 import shannonUrl from '../assets/pixel-crawler/people/shannon.png';
@@ -25,6 +27,8 @@ export interface PaintState {
   reduced: boolean;
   insetTop: number;
   insetBottom: number;
+  /** The spot the HUD's next goal points at, marked with a ring and an arrow. */
+  goal?: Spot | null;
 }
 
 function load(src: string) {
@@ -47,6 +51,18 @@ const people: Record<string, HTMLImageElement> = {
   caesar: load(skeletonUrl),
   vigenere: load(warriorUrl),
   kindi: load(mageUrl),
+  trent: load(wizardUrl),
+  peggy: load(rogueUrl),
+  victor: load(rogueUrl),
+  shamir: load(mageUrl),
+  daemen: load(wizardUrl),
+};
+
+/** Characters that share a sprite get their own colours, so no two people in a room look alike. */
+const TINTS: Record<string, string> = {
+  victor: 'hue-rotate(150deg) saturate(1.2)',
+  shamir: 'hue-rotate(150deg)',
+  daemen: 'hue-rotate(150deg)',
 };
 
 /** Pixel rectangles in vegetation.png: [x, y, w, h]. Colour variants sit 48 px apart. */
@@ -160,6 +176,18 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
     for (let x = x0; x <= x1; x++) drawDecal(ctx, ctxInfo, x, y, sx(x), sy(y));
   }
 
+  // A ring on the ground under the next goal.
+  if (state.goal) {
+    const pulse = state.reduced ? 0.5 : (Math.sin(state.time / 260) + 1) / 2;
+    const gx = (state.goal.x - camX) * tile;
+    const gy = (Math.floor(state.goal.y) + 0.82 - camY) * tile;
+    ctx.strokeStyle = `rgba(246, 212, 107, ${0.55 + pulse * 0.4})`;
+    ctx.lineWidth = Math.max(3, unit * 2);
+    ctx.beginPath();
+    ctx.ellipse(gx, gy, tile * (0.42 + pulse * 0.08), tile * (0.16 + pulse * 0.03), 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   // 3. Standing objects and people, sorted by their feet.
   const sprites: { y: number; draw: () => void }[] = [];
   for (let y = y0; y <= y1; y++) {
@@ -171,7 +199,7 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   for (const spot of state.spots) {
     const character = spot.characterId ? CHARACTER_BY_ID[spot.characterId] : undefined;
     if (character) {
-      sprites.push({ y: spot.y, draw: () => drawActor(ctx, spot.x, spot.y, camX, camY, tile, 'down', people[character.id] ?? people.player) });
+      sprites.push({ y: spot.y, draw: () => drawActor(ctx, spot.x, spot.y, camX, camY, tile, 'down', people[character.id] ?? people.player, TINTS[character.id]) });
     }
   }
   sprites.push({ y: state.y, draw: () => drawActor(ctx, state.x, state.y, camX, camY, tile, state.facing, people.player) });
@@ -184,6 +212,13 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
     const character = spot.characterId ? CHARACTER_BY_ID[spot.characterId] : undefined;
     const label = character ? character.tag : spot.mark;
     if (label) drawTag(ctx, label, spot.x, labelY(map, spot), camX, camY, tile);
+  }
+  if (state.goal) {
+    const gx = state.goal.x;
+    const gy = state.goal.y;
+    const inView = gx > camX + 0.3 && gx < camX + viewW - 0.3 && gy > camY + 0.3 && gy < camY + viewH - 0.3;
+    if (inView) drawGoalArrow(ctx, state.goal, labelY(map, state.goal), camX, camY, tile, unit, state.time, state.reduced);
+    else drawEdgePointer(ctx, gx, gy, state.x, state.y, camX, camY, viewPxW, viewPxH, tile, unit, state.time, state.reduced);
   }
   ctx.restore();
 }
@@ -1046,6 +1081,7 @@ function drawActor(
   tile: number,
   facing: 'up' | 'down' | 'left' | 'right',
   image: HTMLImageElement,
+  tint?: string,
 ) {
   if (!ready(image)) return;
   // Fit the sprite to the tile so a person stands in the room instead of covering it.
@@ -1065,6 +1101,7 @@ function drawActor(
   const dy = Math.round(footY - height);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
+  if (tint) ctx.filter = tint;
   if (facing === 'left') {
     ctx.translate(dx + width, dy);
     ctx.scale(-1, 1);
@@ -1072,6 +1109,93 @@ function drawActor(
   } else {
     ctx.drawImage(image, dx, dy, width, height);
   }
+  ctx.restore();
+}
+
+/** A bouncing gold arrow above the goal's label, or below the goal pointing up when there is no room above. */
+function drawGoalArrow(ctx: CanvasRenderingContext2D, spot: Spot, labelAt: number, camX: number, camY: number, tile: number, unit: number, time: number, reduced: boolean) {
+  const bob = reduced ? 0 : Math.round(Math.sin(time / 220) * 2) * unit;
+  const u = Math.max(2.4, unit * 1.4);
+  const cx = Math.round((spot.x - camX) * tile);
+  let tip = Math.round((labelAt - 1.45 - camY) * tile - Math.max(8, tile * 0.32) - 5 * unit) + bob;
+  let dir = 1;
+  if (tip - 12 * u < 0) {
+    // Not enough room above: point up from just below the goal's ring.
+    tip = Math.round((Math.floor(spot.y) + 1.05 - camY) * tile) - bob;
+    dir = -1;
+  }
+  const shape = (inset: number, colour: string) => {
+    const head = 5 * u - inset;
+    const half = 6 * u - inset * 1.4;
+    const stem = 2.5 * u - inset * 0.8;
+    const tail = 11 * u - inset;
+    const y = (d: number) => tip - dir * d;
+    const t = tip + dir * (inset ? 0 : 2 * u);
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.moveTo(cx, inset ? tip : t);
+    ctx.lineTo(cx - half, y(head));
+    ctx.lineTo(cx - stem, y(head));
+    ctx.lineTo(cx - stem, y(tail));
+    ctx.lineTo(cx + stem, y(tail));
+    ctx.lineTo(cx + stem, y(head));
+    ctx.lineTo(cx + half, y(head));
+    ctx.closePath();
+    ctx.fill();
+  };
+  shape(0, '#111');
+  shape(u, '#f6d46b');
+}
+
+/** A goal off screen: a gold pointer on the edge of the view, aimed at it. */
+function drawEdgePointer(
+  ctx: CanvasRenderingContext2D,
+  gx: number,
+  gy: number,
+  px: number,
+  py: number,
+  camX: number,
+  camY: number,
+  viewW: number,
+  viewH: number,
+  tile: number,
+  unit: number,
+  time: number,
+  reduced: boolean,
+) {
+  const from = { x: (px - camX) * tile, y: (py - camY) * tile };
+  const to = { x: (gx - camX) * tile, y: (gy - camY) * tile };
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const margin = 26 * Math.max(1, unit * 0.6);
+  // Where the line from the player towards the goal leaves the view, pulled in by the margin.
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const tx = dx > 0 ? (viewW - margin - from.x) / dx : dx < 0 ? (margin - from.x) / dx : Infinity;
+  const ty = dy > 0 ? (viewH - margin - from.y) / dy : dy < 0 ? (margin - from.y) / dy : Infinity;
+  const t = Math.max(0, Math.min(tx, ty));
+  const pulse = reduced ? 0 : Math.sin(time / 220) * 3;
+  const x = from.x + dx * (t + pulse);
+  const y = from.y + dy * (t + pulse);
+  const s = Math.max(2.4, unit * 1.4);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.moveTo(9 * s, 0);
+  ctx.lineTo(-5 * s, -7 * s);
+  ctx.lineTo(-2 * s, 0);
+  ctx.lineTo(-5 * s, 7 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#f6d46b';
+  ctx.beginPath();
+  ctx.moveTo(6.5 * s, 0);
+  ctx.lineTo(-3.5 * s, -5 * s);
+  ctx.lineTo(-0.8 * s, 0);
+  ctx.lineTo(-3.5 * s, 5 * s);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 }
 
