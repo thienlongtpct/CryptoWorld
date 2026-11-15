@@ -2,14 +2,13 @@ import { useMemo, useState } from 'react';
 import { useApp } from '../state';
 import { GROUPS, TOPICS, type Topic } from '../vis/registry';
 import { Thumb } from '../vis/Thumb';
-import { SunhacksMark } from '../components/SunhacksMark';
 
 /** Bookmarked topics, in the order they lead the gallery. */
 const POPULAR = ['rsa', 'ecc', 'dh', 'caesar'];
 
 const TIPS = [
   <>Press <b>space</b> to play or pause any animation, and <b>←</b> / <b>→</b> to step through it one line of pseudo-code at a time.</>,
-  <>Switch <b>Alice sees</b> / <b>Bob sees</b> in the top bar (or press <b>A</b> / <b>B</b>) and every value that party never learns turns into a striped block.</>,
+  <>On a protocol where Alice and Bob see different values, choose <b>Alice sees</b> or <b>Bob sees</b> (or press <b>A</b> / <b>B</b>). Values that party never learns turn into a striped block.</>,
   <>Each visualization has an <b>e-Lecture</b> button with the full dictionary entry, its origin papers and related terms.</>,
   <>Open <a href="#psufw">PSU Frameworks &amp; Aborts</a>, tick “connection drops”, and stop after step 2: RPMT has already leaked the intersection size.</>,
   <>Use the yellow <b>actions</b> menu at the bottom-left of a visualization to enter your own messages, sets or keys, then press <b>Go</b>.</>,
@@ -35,9 +34,14 @@ export function Home() {
   return (
     <section className="vhome">
       <div className="vhome-hero">
-        <SunhacksMark variant="banner" />
+        {/* <SunhacksMark variant="banner" /> */}
         <div className="vhome-logo" aria-label="VisuCrypto">VISU<span>CRYPTO</span></div>
-        <p className="vhome-tag">visualising cryptographic protocols through step-by-step animation</p>
+        <p className="vhome-tag">The Library. Search the visualizations, then open the dictionary, paths, quizzes, and references.</p>
+        <div className="vhome-actions">
+          <a className="btn-l outline" href="#world">Return to world</a>
+          <a className="btn-l primary" href="#tour-1">Start a 3-minute tour</a>
+        </div>
+        <p className="vhome-tour">Change a message, exchange a secret, and find common interests privately.</p>
         <form className="vhome-search" role="search" onSubmit={e => { e.preventDefault(); if (shown.length === 1) go(shown[0].id); }}>
           <input type="search" placeholder="Search… e.g. OT, PSU, RSA, shuffle" aria-label="Search visualizations" value={q} onChange={e => setQ(e.target.value)} />
           {(q || tag) && <button type="button" className="btn ghost" onClick={() => { setQ(''); setTag(''); }}>Clear</button>}

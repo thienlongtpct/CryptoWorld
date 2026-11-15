@@ -6,3 +6,7 @@ data/accounts.json.tmp
 *.log
 .env
 .env.*
+infra/node_modules/
+infra/cdk.out/
+infra/cdk.context.json
+infra/outputs.json

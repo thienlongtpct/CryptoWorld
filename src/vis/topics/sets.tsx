@@ -1,11 +1,12 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../../state';
-import { bytesHex, enc, h32, hex, parseSet, shuffled } from '../../lib/crypto';
+import { bytesHex, enc, h32, hex, parseSet, setInputNotes, shuffled } from '../../lib/crypto';
 import { List, S, Seg } from '../../components/ui';
 import { buildProto, Playground, Variants, type ProtoId } from '../../demos/sets';
 import { Aon } from '../../demos/libraries';
 import { VisPage, type Frame } from '../Player';
 import { Go, Party, SMsg, Wire } from '../kit';
+import { useTour } from '../tour';
 
 const setStr = (xs: string[]) => `{${xs.join(', ')}}`;
 
@@ -22,24 +23,30 @@ function Venn({ A, B, hideA, hideB }: { A: string[]; B: string[]; hideA?: boolea
   );
 }
 
-function SetsForm({ onGo }: { onGo?: () => void }) {
+function SetsForm({ onGo, seed, onApply }: { onGo?: () => void; seed?: { a: string; b: string }; onApply?: (a: string, b: string) => void }) {
   const { setA, setB, setSetA, setSetB } = useApp();
-  const [a, setLa] = useState(setA), [b, setLb] = useState(setB);
-  return <>A <input type="text" value={a} onChange={e => setLa(e.target.value)} style={{ width: '14em' }} /> B <input type="text" value={b} onChange={e => setLb(e.target.value)} style={{ width: '12em' }} /><Go onClick={() => { setSetA(a); setSetB(b); onGo?.(); }} /></>;
+  const [a, setLa] = useState(seed?.a ?? setA), [b, setLb] = useState(seed?.b ?? setB);
+  const notes = [setInputNotes(a) && `A: ${setInputNotes(a)}`, setInputNotes(b) && `B: ${setInputNotes(b)}`].filter(Boolean).join(' ');
+  return <>A <input type="text" value={a} onChange={e => setLa(e.target.value)} style={{ width: '14em' }} /> B <input type="text" value={b} onChange={e => setLb(e.target.value)} style={{ width: '12em' }} /><Go onClick={() => { if (onApply) onApply(a, b); else { setSetA(a); setSetB(b); } onGo?.(); }} />{notes && <div className="note">{notes}</div>}</>;
 }
 
 const ledger = (items: ReactNode[]) => <ul style={{ margin: 0, paddingLeft: 18 }}>{items.length ? items.map((x, i) => <li key={i}>{x}</li>) : <li className="muted">nothing yet</li>}</ul>;
 
 // ---------- PSI ----------
 const PSI_CODE: Record<ProtoId, string[]> = {
-  naive: ['Naive hash PSI:', 'A: send H(a) for every a ∈ A', 'B: compare with H(b) for b ∈ B', 'B: report matches', 'attack: B hashes a dictionary and inverts H'],
+  naive: ['Naive hash PSI:', 'A: h ← H(a) for every a ∈ A', 'A: send the hashes', 'B: compare H(b) with the list and report matches', 'attack: B hashes a dictionary and inverts H'],
   dh: ['DH-PSI:', 'A: α ← random; send H(a)^α for a ∈ A', 'B: β ← random; send (H(a)^α)^β and H(b)^β (shuffled)', 'A: compute (H(b)^β)^α and compare with H(a)^(αβ)'],
   oprf: ['OPRF-PSI:', 'for each a ∈ A: A obtains F_k(a) via OPRF with B', 'B: send F_k(b) for all b ∈ B (shuffled)', 'A: a ∈ A ∩ B  iff  F_k(a) is in the list'],
   vole: ['VOLE + OKVS PSI (RS21-style):', 'silent VOLE:  B = C + A·Δ', 'A: P ← OKVS{a ↦ H(a)};  send D = P − A', 'B: K = B + D·Δ;  send H(Decode(K,b) − Δ·H(b)) for b ∈ B', 'A: a ∈ A ∩ B  iff  H(Decode(C,a)) is in the list'],
   circuit: ['Circuit-PSI:', 'A: cuckoo-hash A into bins;  B: simple-hash B', 'OPPRF per bin (B programs the targets)', 'parties hold XOR shares of [bin item ∈ B]', '2PC on the shares, e.g. count = |A ∩ B|'],
 };
 export function PsiVis() {
-  const { A, B } = useApp();
+  const app = useApp();
+  const tour = useTour();
+  // A tour stop keeps its own sets so the shared playground is unchanged after Exit.
+  const [local, setLocal] = useState<{ a: string; b: string } | null>(tour?.sets ?? null);
+  const A = local ? parseSet(local.a) : app.A;
+  const B = local ? parseSet(local.b) : app.B;
   const [proto, setProto] = useState<ProtoId>('dh');
   const frames = useMemo<Frame[]>(() => {
     const P_ = buildProto(proto, A, B);
@@ -48,6 +55,7 @@ export function PsiVis() {
       status: k === 0 ? <><b>{s.n}.</b> {P_.desc}</> : <b>{s.n}.</b>,
       stage: (
         <>
+          <p className="note">Ideal picture of the sets. The trace is a simplified illustration, not a complete secure protocol. Repeated items are kept once.</p>
           <Venn A={A} B={B} hideA hideB />
           <div className="st-row">
             <Party who="alice" title="Alice">{s.a}</Party>
@@ -65,7 +73,7 @@ export function PsiVis() {
   return (
     <VisPage topicId="psi" code={PSI_CODE[proto]} frames={frames} actions={[
       { label: 'Protocol', form: <Seg value={proto} onChange={setProto} options={[['naive', 'Naive'], ['dh', 'DH'], ['oprf', 'OPRF'], ['vole', 'VOLE+OKVS'], ['circuit', 'Circuit']]} /> },
-      { label: 'Sets A, B', form: <SetsForm /> },
+      { label: 'Sets A, B', form: <SetsForm seed={local ?? undefined} onApply={local ? (a, b) => setLocal({ a, b }) : undefined} /> },
     ]} />
   );
 }

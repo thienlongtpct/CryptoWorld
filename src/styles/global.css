@@ -14,6 +14,7 @@
   --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-ui:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --f-pixel:"Silkscreen","Press Start 2P",var(--f-mono);
   --r:8px;
   --shadow-card:0 0 2px 0 rgba(145,158,171,.2),0 12px 24px -4px rgba(145,158,171,.12);
   --shadow-z1:0 1px 2px 0 rgba(145,158,171,.16);
@@ -416,11 +417,18 @@ input[type=text]:focus,input[type=number]:focus,input[type=search]:focus{outline
 input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 input[type=range]{accent-color:var(--accent)}
 
-/* buttons: contained (dark) and outlined */
-button.btn{font-family:var(--f-ui);font-size:.85rem;font-weight:700;border-radius:8px;padding:7px 16px;min-height:36px;border:0;background:var(--ink);color:#fff;box-shadow:none;transition:background .15s,box-shadow .15s}
-button.btn:hover{filter:none;background:#454F5B;box-shadow:var(--shadow-z8)}
-button.btn.ghost{background:transparent;color:var(--ink);border:1px solid rgba(145,158,171,.32)}
-button.btn.ghost:hover{background:rgba(145,158,171,.08);border-color:var(--ink);box-shadow:none}
+/* Important actions: flat slabs, pixel labels. 16px keeps Silkscreen on its bitmap grid. */
+button.btn,.btn-l,.acct-btn,.acct-who button,#viewbanner button{
+  font-family:var(--f-pixel);font-weight:400;font-size:16px;letter-spacing:.02em;line-height:1.4;
+  font-synthesis:none;-webkit-font-smoothing:none;text-decoration:none!important;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:2px solid #111;border-radius:0;background:#111;color:#fff;box-shadow:none;
+  padding:8px 14px;min-height:40px;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+button.btn:hover,.btn-l.primary:hover,.acct-btn:hover,.acct-who button:hover,#viewbanner button:hover{filter:none;background:#fff;color:#111;border-color:#111;box-shadow:none;text-decoration:none}
+button.btn.ghost,.btn-l.outline{background:#fff;color:#111;border-color:#111}
+button.btn.ghost:hover,.btn-l.outline:hover{background:#111;color:#fff;border-color:#111;box-shadow:none;text-decoration:none}
+button.btn:disabled,button.btn:disabled:hover{background:#eceff1;color:#919eab;border-color:#c4cdd5;cursor:default;filter:none;box-shadow:none}
+button.btn:focus-visible,.btn-l:focus-visible,.acct-btn:focus-visible,.acct-who button:focus-visible,#viewbanner button:focus-visible{border-radius:0}
 
 /* segmented controls → MUI tabs with a pill indicator */
 .seg,.eyes{display:inline-flex;gap:2px;padding:4px;background:var(--sunk);border:0;border-radius:10px;overflow:visible;flex-wrap:wrap}
@@ -533,8 +541,8 @@ table.tbl td{border-bottom:1px dashed var(--line);padding:12px 14px}
 .fgroup .muted,.q .muted{font-family:var(--f-ui);font-weight:600;font-size:.8rem}
 
 /* snackbar */
-#viewbanner{border-radius:8px;background:var(--ink);font-family:var(--f-ui);box-shadow:var(--shadow-dropdown)}
-#viewbanner button{border-radius:6px;font-weight:700;color:var(--accent-dark)}
+#viewbanner{border-radius:0;background:var(--ink);font-family:var(--f-ui);box-shadow:none;border:2px solid #111}
+#viewbanner button{background:#fff;color:#111}
 
 /* bibliography explorer + charts */
 .pcard{background:var(--surface)}
@@ -556,11 +564,7 @@ footer{font-family:var(--f-ui);border-top:1px dashed var(--line)}
 .hero2 h1 .h1-accent{color:var(--accent);display:block}
 .abstract{font-size:1.15rem;line-height:1.75;color:var(--muted);max-width:56ch}
 .cta{display:flex;flex-wrap:wrap;gap:12px}
-.btn-l{font-family:var(--f-ui);font-weight:700;font-size:.95rem;border-radius:10px;padding:13px 22px;text-decoration:none!important;transition:background .15s,box-shadow .15s}
-.btn-l.primary{background:var(--ink);color:#fff}
-.btn-l.primary:hover{background:#454F5B;box-shadow:var(--shadow-z8)}
-.btn-l.outline{color:var(--ink);border:1px solid rgba(145,158,171,.32)}
-.btn-l.outline:hover{background:rgba(145,158,171,.08);border-color:var(--ink)}
+.btn-l{padding:10px 16px}
 .hsearch{display:flex;gap:8px;width:min(480px,100%)}
 .hsearch input{flex:1;min-width:0;padding:11px 14px!important}
 .hero-art{position:relative;display:grid;gap:14px;padding:28px;border-radius:24px;background:linear-gradient(135deg,rgba(0,167,111,.08),rgba(142,51,255,.06));}
@@ -717,9 +721,11 @@ select{font-family:var(--f-ui);font-size:.9rem;border:1px solid rgba(145,158,171
 .tree-key i.seen{background:#fff8e1;border-color:#f9a825}
 
 /* accounts */
-.acct-btn,.acct-who button{font:inherit;font-size:.8rem;font-weight:700;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
-.acct-btn:hover,.acct-who button:hover{border-color:var(--ink)}
-.acct-btn.on-dark,.acct-who.on-dark button{background:rgba(255,248,230,.08);border-color:rgba(255,248,230,.28);color:#fff8e6}
+.acct-btn,.acct-who button{white-space:nowrap}
+.acct-btn.on-dark{background:#fff;color:#111;border-color:#fff}
+.acct-btn.on-dark:hover{background:#72b043;border-color:#72b043;color:#111}
+.acct-who.on-dark button{background:transparent;color:#fff;border-color:#fff}
+.acct-who.on-dark button:hover{background:#fff;color:#111;border-color:#fff}
 .acct-who{display:inline-flex;align-items:center;gap:8px}
 .acct-who a{font-weight:700;text-decoration:none;color:var(--ink)}
 .acct-who.on-dark a{color:#fff8e6}
@@ -733,7 +739,7 @@ select{font-family:var(--f-ui);font-size:.9rem;border:1px solid rgba(145,158,171
 .acct-card input,.lesson-check input{font:inherit;font-size:1rem;padding:10px 12px;border-radius:8px;border:1px solid rgba(145,158,171,.32);background:var(--bg);color:var(--ink);width:100%}
 .acct-hint{font-size:.8rem}
 .acct-error{color:#C62828!important;font-weight:600}
-.acct-switch{border:0;background:none;color:var(--accent-dark);font:inherit;font-weight:700;cursor:pointer;text-align:left;padding:0}
+.acct-switch{border:0;background:none;color:#111;font-family:var(--f-pixel);font-weight:400;font-size:16px;line-height:1.45;letter-spacing:.02em;font-synthesis:none;-webkit-font-smoothing:none;cursor:pointer;text-align:left;padding:0}
 
 /* learning paths and foundation lessons */
 .paths,.lesson{display:grid;gap:14px;padding-block:18px 8px;justify-items:start}
@@ -766,3 +772,21 @@ select{font-family:var(--f-ui);font-size:.9rem;border:1px solid rgba(145,158,171
 .lesson-check label{display:grid;gap:4px;font-weight:700;flex:1 1 220px}
 .lesson-ok{margin:0;font-weight:700;color:var(--accent-dark)}
 .lesson-used{margin:0;color:var(--muted);font-size:.88rem}
+
+.practice{display:grid;gap:12px;max-width:720px;padding:20px;border-radius:16px;background:var(--surface);box-shadow:var(--shadow-card)}
+.practice-kicker{margin:0;font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--disabled)}
+.practice-prompt{margin:0;font-weight:700;font-size:1.05rem}
+.practice-form{display:grid;gap:12px;justify-items:start}
+.practice-choices{display:grid;gap:8px;width:100%}
+.practice-choices button{font:inherit;text-align:left;padding:12px 14px;border-radius:10px;border:0;background:var(--sunk);color:var(--ink);cursor:pointer}
+.practice-choices button.on{background:var(--accent-soft);color:var(--accent-dark);font-weight:700}
+.practice-choices button:hover{background:rgba(145,158,171,.2)}
+.practice-choices button.on:hover{background:var(--accent-soft)}
+
+.ctf{display:grid;gap:12px;max-width:720px;width:100%;padding:20px;border-radius:16px;background:var(--surface);box-shadow:var(--shadow-card)}
+.ctf h2{margin:0;font-family:var(--f-display);font-size:1.45rem}
+.ctf-brief,.ctf-hint{margin:0}
+.ctf-hint{color:var(--muted)}
+.ctf-form{display:grid;gap:12px;justify-items:start;width:100%}
+.ctf-form label{display:grid;gap:4px;font-weight:700;width:min(420px,100%)}
+.ctf-actions{display:flex;flex-wrap:wrap;gap:8px}

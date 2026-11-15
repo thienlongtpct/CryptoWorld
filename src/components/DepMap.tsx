@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../state';
+import { termRoute } from '../data/entries';
 
 // Nodes: [x, y, label, route]. Columns run from foundations (left) to applications (right).
 const N: Record<string, [number, number, string, string]> = {
@@ -47,7 +48,7 @@ export function DepMap() {
           return (
             <g key={k} className={`dn ${cls}`} tabIndex={0} role="link" aria-label={label}
               onMouseEnter={() => setFocus(k)} onFocus={() => setFocus(k)} onMouseLeave={() => setFocus(null)} onBlur={() => setFocus(null)}
-              onClick={() => go(route)} onKeyDown={e => { if (e.key === 'Enter') go(route); }}>
+              onClick={() => go(termRoute(route))} onKeyDown={e => { if (e.key === 'Enter') go(termRoute(route)); }}>
               <rect x={x - W / 2} y={y - H / 2} width={W} height={H} rx={5} />
               <text x={x} y={y}>{label}</text>
             </g>

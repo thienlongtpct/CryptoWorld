@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { G, P, bigPow, hex, h32, minv, mod, mpow, rnd } from '../../lib/crypto';
+import { G, P, bigPow, dhExponent, hex, h32, minv, mod, mpow, rnd } from '../../lib/crypto';
 import { Kv, S, Seg } from '../../components/ui';
 import { VisPage } from '../Player';
 import { Go, Hl, Party, SMsg, Wire, framesFrom, useDraft } from '../kit';
@@ -124,6 +124,17 @@ export function CommitmentVis() {
 
 // ---------- Diffie–Hellman ----------
 const DH_CODE = ['public: prime p = 1019, generator g = 4', 'Alice: a ← random;  A ← g^a', 'send A', 'Bob:   b ← random;  B ← g^b', 'send B', 'Alice: K ← B^a', 'Bob:   K ← A^b', 'both hold K = g^(ab)'];
+function DhSecrets({ a, b, setA, setB, onApply }: { a: number; b: number; setA: (n: number) => void; setB: (n: number) => void; onApply: (ab: [number, number]) => void }) {
+  const bad = dhExponent(a) === null || dhExponent(b) === null;
+  return (
+    <>
+      a <input type="number" min={1} max={508} value={Number.isNaN(a) ? '' : a} onChange={e => setA(e.target.value === '' ? Number.NaN : +e.target.value)} />
+      b <input type="number" min={1} max={508} value={Number.isNaN(b) ? '' : b} onChange={e => setB(e.target.value === '' ? Number.NaN : +e.target.value)} />
+      <Go onClick={() => { const ae = dhExponent(a), be = dhExponent(b); if (ae !== null && be !== null) onApply([ae, be]); }} />
+      {bad && <div className="bad">Use a whole number from 1 to 508 for each secret. This educational group has order 509, so those are the nonzero exponents.</div>}
+    </>
+  );
+}
 export function DiffieHellmanVis() {
   const [ab, setAb] = useState<[number, number]>([123, 321]);
   const [aD, setAD] = useState(123), [bD, setBD] = useState(321);
@@ -136,10 +147,10 @@ export function DiffieHellmanVis() {
           {k >= 5 && <Kv k="K = Bᵃ" who="a"><Hl on={k === 5}>{Ka}</Hl></Kv>}
         </Party>
         <Wire>
-          <div className="note" style={{ textAlign: 'center' }}>g = 4, p = 1019</div>
+          <div className="note" style={{ textAlign: 'center' }}>Educational group only: g = 4, safe prime p = 1019. Not a secure size.</div>
           {k >= 2 && <SMsg dir="Alice → Bob" fresh={k === 2}>A = {A}</SMsg>}
           {k >= 4 && <SMsg dir="Bob → Alice" fresh={k === 4}>B = {B}</SMsg>}
-          {k >= 7 && <div className="note">An eavesdropper sees only A and B.</div>}
+          {k >= 7 && <div className="note">An eavesdropper sees only A and B. {Ka === Kb ? `Both derive K = ${Ka}.` : `The two results differ (${Ka} and ${Kb}).`}</div>}
         </Wire>
         <Party who="bob" title="Bob">
           {k >= 3 && <><Kv k="secret b" who="b">{b}</Kv><Kv k="B = gᵇ">{B}</Kv></>}
@@ -155,12 +166,12 @@ export function DiffieHellmanVis() {
       { status: <>He sends B in the clear.</>, line: 4 },
       { status: <>Alice raises B to her secret: K = {Ka}.</>, line: 5 },
       { status: <>Bob raises A to his secret: K = {Kb}.</>, line: 6 },
-      { status: <>Both hold the same key {Ka === Kb ? '✓' : ''}, because (gᵇ)ᵃ = (gᵃ)ᵇ.</>, line: 7 },
+      { status: Ka === Kb ? <>Both hold the same key K = {Ka}, because (gᵇ)ᵃ = (gᵃ)ᵇ. These parameters are educational, not secure.</> : <>The two calculations disagree: Alice got {Ka} and Bob got {Kb}.</>, line: 7 },
     ], view);
   }, [ab]);
   return (
     <VisPage topicId="dh" code={DH_CODE} frames={frames} actions={[
-      { label: 'Choose secrets', form: <>a <input type="number" min={1} max={508} value={aD} onChange={e => setAD(+e.target.value)} /> b <input type="number" min={1} max={508} value={bD} onChange={e => setBD(+e.target.value)} /><Go onClick={() => setAb([mod(aD, 508) || 1, mod(bD, 508) || 1])} /></> },
+      { label: 'Choose secrets', form: <DhSecrets a={aD} b={bD} setA={setAD} setB={setBD} onApply={setAb} /> },
       { label: 'Random secrets', form: <Go onClick={() => { const a = rnd(2, 508), b = rnd(2, 508); setAD(a); setBD(b); setAb([a, b]); }}>Randomize</Go> },
     ]} />
   );

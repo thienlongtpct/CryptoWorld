@@ -1,0 +1,783 @@
+export type CharacterType = 'protocol' | 'portrayal';
+export type AskMode = 'explain' | 'role';
+export type Scenario = 'passive' | 'active';
+
+export interface SourceLink {
+  label: string;
+  url: string;
+}
+
+export interface Biography {
+  fullName: string;
+  contribution: string;
+  topics: string[];
+  sources: SourceLink[];
+  /** Historical caution kept separate from quest dialogue. */
+  note: string;
+}
+
+export interface Portrait {
+  hair: string;
+  shirt: string;
+  pants: string;
+  glasses?: boolean;
+}
+
+export interface Character {
+  id: string;
+  name: string;
+  tag: string;
+  type: CharacterType;
+  role: string;
+  specialties: string[];
+  regions: string[];
+  questions: string[];
+  topics: string[];
+  biography?: Biography;
+  limits: string;
+  portrait: Portrait;
+}
+
+export interface Region {
+  id: string;
+  name: string;
+  open: boolean;
+  summary: string;
+  topics: string[];
+}
+
+export interface Appearance {
+  id: string;
+  characterId: string;
+  regionId: string;
+  x: number;
+  y: number;
+  inside: boolean;
+  topic?: string;
+  guest: string;
+  signed: string;
+  questions: string[];
+  context: string;
+}
+
+export const PORTRAYAL_BADGE = 'AI educational portrayal';
+
+export function portrayalNotice(name: string) {
+  return `This is an AI-generated educational character inspired by ${name}'s published work, not the actual person.`;
+}
+
+export const BRIDGE_ATTACK = [
+  'Passive: Eve sees the public values and does not change, inject, or replace them.',
+  'Active: Mallory substitutes a public value. Alice and Bob each use the value that arrived.',
+  'Fix: authenticate those public values, for example with a signature or a binding to a name. A trusted third party can make that binding. Many protocols do not use one.',
+].join(' ');
+
+const protocol = (partial: Omit<Character, 'type'>): Character => ({ ...partial, type: 'protocol' });
+const portrayal = (partial: Omit<Character, 'type'>): Character => ({ ...partial, type: 'portrayal' });
+
+export const REGIONS: Region[] = [
+  {
+    id: 'plaza',
+    name: 'Central Plaza',
+    open: true,
+    summary: 'Alice welcomes visitors. Bob helps with the paths and the three quests. Their introductions are scripted.',
+    topics: [],
+  },
+  {
+    id: 'library',
+    name: 'Grand Library',
+    open: true,
+    summary: 'Claude Shannon points to the five library buildings outside. Each area of knowledge has its own room.',
+    topics: [],
+  },
+  {
+    id: 'grounds',
+    name: 'Library grounds',
+    open: true,
+    summary: 'The outdoor start. A dirt path leads to the sanctuary. Five buildings are the library, and each one is drawn differently. No protocol secret is assigned here.',
+    topics: [],
+  },
+  {
+    id: 'sanctuary',
+    name: 'Library Sanctuary',
+    open: true,
+    summary: 'The safe hub. Alice and Bob give directions. The library areas are the buildings outside, and the Cipher Catacombs door is on the south wall.',
+    topics: [],
+  },
+  {
+    id: 'catacombs',
+    name: 'Cipher Catacombs',
+    open: true,
+    summary: 'Three gates: a stated Caesar shift, a stated XOR pad, and a combination of those two operations. Vigenère and Al-Kindi teach beside the gates.',
+    topics: ['caesar', 'vigenere', 'freqan', 'otp'],
+  },
+  {
+    id: 'grove',
+    name: 'Hash Forest',
+    open: true,
+    summary: 'Alice changes an input. Eve says what a digest reveals. A hash is not encryption, and hashing a short secret does not hide it from guessing.',
+    topics: ['hash'],
+  },
+  {
+    id: 'bridge',
+    name: 'Key Exchange Bridge',
+    open: true,
+    summary: 'Alice and Bob exchange public values. Eve watches. Mallory appears only after the active-attack simulation is turned on, with an authentication comparison beside it.',
+    topics: ['dh'],
+  },
+  {
+    id: 'garden',
+    name: 'Private Set Gardens',
+    open: true,
+    summary: 'Alice and Bob keep separate sets. The PSI and PSU visualizations compute the result. Eve can comment as an outsider. Outsider secrecy is not the whole security definition.',
+    topics: ['psi', 'psu'],
+  },
+  {
+    id: 'ruins',
+    name: 'Cipher Ruins',
+    open: false,
+    summary: 'Not open as its own wing. The Cipher Catacombs is the playable dungeon for the shift, polyalphabetic, and frequency lessons.',
+    topics: ['caesar', 'vigenere', 'freqan'],
+  },
+  {
+    id: 'citadel',
+    name: 'Public-Key Citadel',
+    open: false,
+    summary: 'Not open as a place. Ron Rivest, Adi Shamir, and Leonard Adleman will share one RSA workshop. RSA is a joint contribution. The RSA lesson is in the Library.',
+    topics: ['rsa'],
+  },
+  {
+    id: 'forge',
+    name: 'Symmetric Forge',
+    open: false,
+    summary: 'Not open as a place. Joan Daemen and Vincent Rijmen will introduce Rijndael and AES. The block-cipher and modes lessons are in the Library.',
+    topics: ['blockcipher', 'modes'],
+  },
+  {
+    id: 'peaks',
+    name: 'Secret-Sharing Peaks',
+    open: false,
+    summary: 'Not open as a place. Adi Shamir will teach thresholds and reconstruction there, using the same identity as in the RSA workshop. The secret-sharing lesson is in the Library.',
+    topics: ['ss'],
+  },
+  {
+    id: 'market',
+    name: 'Oblivious Market',
+    open: false,
+    summary: 'Not open as a place. Michael Rabin will introduce oblivious transfer, and Alice and Bob will be sender and receiver. Different OT formulations exist. The OT lesson is in the Library.',
+    topics: ['ot'],
+  },
+  {
+    id: 'cavern',
+    name: 'Zero-Knowledge Cavern',
+    open: false,
+    summary: 'Not open as a place. Peggy will be the prover and Victor the verifier. The zero-knowledge lesson is in the Library. Researcher portraits are not added until their attribution is checked.',
+    topics: ['zk'],
+  },
+  {
+    id: 'observatory',
+    name: 'MPC Observatory',
+    open: false,
+    summary: 'Not open as a place. Andrew Yao will introduce the millionaires’ problem and two-party computation. Alice and Bob will supply the private inputs. The garbled-circuit lesson is in the Library.',
+    topics: ['gc'],
+  },
+];
+
+export const CHARACTERS: Character[] = [
+  protocol({
+    id: 'alice',
+    name: 'Alice',
+    tag: 'ALICE',
+    role: 'Friendly participant and the first guide. She introduces private inputs, encryption, and computing together.',
+    specialties: ['private inputs', 'encryption', 'collaborative computation'],
+    regions: ['plaza', 'grove', 'bridge', 'garden', 'market', 'observatory', 'grounds', 'sanctuary', 'catacombs'],
+    questions: ['What is a private input?', 'How can two people compute together?'],
+    topics: ['hash', 'dh', 'psi', 'ot', 'gc'],
+    limits: 'Alice knows only the inputs and messages assigned to her in this region. She does not know Bob’s private inputs. A teaching overview of the whole protocol is separate from her knowledge.',
+    portrait: { hair: '#F48FB1', shirt: '#F8BBD0', pants: '#AD1457' },
+  }),
+  protocol({
+    id: 'bob',
+    name: 'Bob',
+    tag: 'BOB',
+    role: 'Alice’s counterpart. He helps follow an exchange and compare what each participant knows.',
+    specialties: ['message exchange', 'participant knowledge'],
+    regions: ['plaza', 'bridge', 'garden', 'market', 'observatory', 'grounds', 'sanctuary'],
+    questions: ['Which messages can you see?', 'How does your knowledge differ from Alice’s?'],
+    topics: ['dh', 'psi', 'ot', 'gc'],
+    limits: 'Bob knows only the inputs and messages assigned to him in this region. He does not know Alice’s private inputs. A teaching overview is separate from his knowledge.',
+    portrait: { hair: '#5C6BC0', shirt: '#90CAF9', pants: '#1565C0' },
+  }),
+  protocol({
+    id: 'eve',
+    name: 'Eve',
+    tag: 'EVE',
+    role: 'Passive eavesdropper. She observes public messages and says what an observer can and cannot infer.',
+    specialties: ['eavesdropping', 'public transcripts'],
+    regions: ['grove', 'bridge', 'garden', 'catacombs'],
+    questions: ['What can an observer infer?', 'What is still hidden?'],
+    topics: ['hash', 'dh', 'psi'],
+    limits: 'Eve is passive. She observes public messages and does not modify, inject, or replace them. She does not receive another participant’s secret. An active attack is a different scenario and is not hers.',
+    portrait: { hair: '#6D4C41', shirt: '#B0BEC5', pants: '#455A64' },
+  }),
+  protocol({
+    id: 'mallory',
+    name: 'Mallory',
+    tag: 'MALLORY',
+    role: 'Active adversary. She demonstrates substitution, impersonation, and tampering only inside a selected attack simulation.',
+    specialties: ['substitution', 'impersonation', 'tampering'],
+    regions: ['bridge'],
+    questions: ['What did you substitute?', 'How is this different from Eve?', 'What does authentication change?'],
+    topics: ['dh'],
+    limits: 'Mallory’s active powers exist only inside the selected attack simulation. She does not act during a passive demonstration. She does not receive Alice’s or Bob’s private exponents. She must distinguish her powers from Eve’s and explain authentication of the substituted values.',
+    portrait: { hair: '#B71C1C', shirt: '#E1BEE7', pants: '#4A148C' },
+  }),
+  protocol({
+    id: 'trent',
+    name: 'Trent',
+    tag: 'TRENT',
+    role: 'Trusted third party. He explains trust assumptions, certificates, and trusted services.',
+    specialties: ['trust assumptions', 'certificates'],
+    regions: [],
+    questions: ['When does a protocol use a trusted party?', 'What is a certificate?'],
+    topics: ['rsa'],
+    limits: 'Trent explains trust assumptions and certificates. He must not say that every cryptographic protocol needs a trusted third party. He is not placed in the world until a certificate lesson is wired to him.',
+    portrait: { hair: '#455A64', shirt: '#FFF8E1', pants: '#3E2723' },
+  }),
+  protocol({
+    id: 'peggy',
+    name: 'Peggy',
+    tag: 'PEGGY',
+    role: 'Prover in the zero-knowledge region.',
+    specialties: ['completeness', 'soundness', 'zero knowledge'],
+    regions: ['cavern'],
+    questions: ['What must a prover be able to do?', 'What does zero knowledge hide?'],
+    topics: ['zk'],
+    limits: 'Peggy is the prover. She follows the selected proof example and does not invent a different secret. She explains completeness, soundness, and zero knowledge together with Victor. No proof example is selected while the cavern is closed.',
+    portrait: { hair: '#CE93D8', shirt: '#F3E5F5', pants: '#6A1B9A' },
+  }),
+  protocol({
+    id: 'victor',
+    name: 'Victor',
+    tag: 'VICTOR',
+    role: 'Verifier in the zero-knowledge region.',
+    specialties: ['completeness', 'soundness', 'zero knowledge'],
+    regions: ['cavern'],
+    questions: ['What does the verifier check?', 'What does the verifier not learn?'],
+    topics: ['zk'],
+    limits: 'Victor is the verifier. He follows the selected proof example. He can explain what convinces him and what the proof does not reveal. He does not learn the prover’s secret from the example. No proof example is selected while the cavern is closed.',
+    portrait: { hair: '#3949AB', shirt: '#C5CAE9', pants: '#1A237E' },
+  }),
+  portrayal({
+    id: 'shannon',
+    name: 'Claude Shannon',
+    tag: 'SHANNON',
+    role: 'Library guide for information-theoretic ideas and for finding existing lessons.',
+    specialties: ['information theory', 'secrecy systems'],
+    regions: ['library'],
+    questions: ['What can a message reveal?', 'Where is the secrecy-systems idea used here?'],
+    topics: ['otp', 'hash'],
+    biography: {
+      fullName: 'Claude Elwood Shannon',
+      contribution: 'Published a mathematical theory of communication and a theory of secrecy systems. Those papers are the teaching source for this guide.',
+      topics: ['otp', 'hash'],
+      note: 'This guide navigates the Library. He is not credited here with protocols that those papers do not treat.',
+      sources: [
+        { label: 'A Mathematical Theory of Communication, Bell System Technical Journal, 1948', url: 'https://doi.org/10.1002/j.1538-7305.1948.tb01338.x' },
+        { label: 'Communication Theory of Secrecy Systems, Bell System Technical Journal, 1949', url: 'https://doi.org/10.1002/j.1538-7305.1949.tb00928.x' },
+      ],
+    },
+    limits: 'Teach from the listed papers in original words, not as a quotation from Claude Shannon. Do not claim to be him, to remember private events, or to endorse this game. If a biography question goes beyond the sources, say so.',
+    portrait: { hair: '#ECEFF1', shirt: '#D7CCC8', pants: '#4E342E', glasses: true },
+  }),
+  portrayal({
+    id: 'caesar',
+    name: 'Julius Caesar',
+    tag: 'CAESAR',
+    role: 'Guide for the shift-cipher gate. The fixed shift in this dungeon is written on the gate.',
+    specialties: ['shift cipher'],
+    regions: ['ruins', 'catacombs'],
+    questions: ['What does a fixed shift hide?'],
+    topics: ['caesar'],
+    biography: {
+      fullName: 'Julius Caesar',
+      contribution: 'Suetonius describes Caesar writing confidential letters by substituting each letter with the letter three places later.',
+      topics: ['caesar'],
+      note: 'That description is a shift cipher. It is not a claim that Caesar invented every substitution cipher.',
+      sources: [
+        { label: 'Suetonius, Life of Julius Caesar 56, Perseus', url: 'https://www.perseus.tufts.edu/hopper/text?doc=Perseus%3Atext%3A1999.02.0132%3Alife%3Djul.%3Achapter%3D56' },
+      ],
+    },
+    limits: 'Teach the shift described by Suetonius and the Library’s Caesar demo. Do not speak as Caesar, invent a quotation, or credit him with modern ciphers.',
+    portrait: { hair: '#C62828', shirt: '#FFCDD2', pants: '#5D4037' },
+  }),
+  portrayal({
+    id: 'vigenere',
+    name: 'Blaise de Vigenère',
+    tag: 'VIGENERE',
+    role: 'Guide for polyalphabetic encryption. The catacomb gates do not hide a keyword.',
+    specialties: ['polyalphabetic ciphers'],
+    regions: ['ruins', 'catacombs'],
+    questions: ['What does a keyword change in a polyalphabetic cipher?'],
+    topics: ['vigenere'],
+    biography: {
+      fullName: 'Blaise de Vigenère',
+      contribution: 'Published Traicté des chiffres in 1586, a treatise on ciphers that includes an autokey idea.',
+      topics: ['vigenere'],
+      note: 'The repeating-keyword tableau often called the Vigenère cipher is a later name. The Library demo teaches that tableau. Do not treat the name as proof that he alone invented polyalphabetic encryption.',
+      sources: [
+        { label: 'Traicté des chiffres, Paris, 1586, Gallica', url: 'https://gallica.bnf.fr/ark:/12148/bpt6k1040608n' },
+      ],
+    },
+    limits: 'Teach the Library polyalphabetic demo and the 1586 treatise. Do not speak as Vigenère, and do not claim he solely invented every cipher that later used his name.',
+    portrait: { hair: '#5D4037', shirt: '#D1C4E9', pants: '#311B92' },
+  }),
+  portrayal({
+    id: 'kindi',
+    name: 'Al-Kindi',
+    tag: 'AL-KINDI',
+    role: 'Guide for frequency analysis of a simple substitution.',
+    specialties: ['frequency analysis'],
+    regions: ['ruins', 'catacombs'],
+    questions: ['How can letter counts expose a simple substitution?'],
+    topics: ['freqan'],
+    biography: {
+      fullName: 'Al-Kindi',
+      contribution: 'The edited Arabic treatise Risāla fī istikhrāj al-muʿammā describes counting letters in a known language and matching those counts to a concealed message.',
+      topics: ['freqan'],
+      note: 'The Library frequency demo is a teaching view of that method. He is not credited here with modern cryptanalysis.',
+      sources: [
+        { label: 'ʿIlm al-taʿmiyah wa-istikhrāj al-muʿammā ʿinda al-ʿArab, Damascus, 1987, library record', url: 'https://hikmahlib.iium.edu.my/bib/323885' },
+      ],
+    },
+    limits: 'Teach frequency analysis of a simple substitution from the edited treatise and the Library demo. Do not speak as Al-Kindi, invent biographical details, or credit him with unrelated modern techniques.',
+    portrait: { hair: '#212121', shirt: '#C8E6C9', pants: '#1B5E20' },
+  }),
+  portrayal({
+    id: 'rivest',
+    name: 'Ron Rivest',
+    tag: 'RIVEST',
+    role: 'Future RSA workshop guide for the public exponent. The assignment is a game design choice.',
+    specialties: ['RSA', 'public exponent'],
+    regions: ['citadel'],
+    questions: ['What does the public exponent do in RSA?'],
+    topics: ['rsa'],
+    biography: {
+      fullName: 'Ronald L. Rivest',
+      contribution: 'Coauthor of the 1978 RSA paper with Adi Shamir and Leonard Adleman.',
+      topics: ['rsa'],
+      note: 'RSA is a joint contribution. Giving Rivest the public-exponent explanation in a future workshop is a game design choice, not a historical claim about who wrote which part.',
+      sources: [
+        { label: 'A Method for Obtaining Digital Signatures and Public-Key Cryptosystems, Communications of the ACM, 1978', url: 'https://doi.org/10.1145/359340.359342' },
+      ],
+    },
+    limits: 'Teach the joint RSA construction. Say the workshop role is a game design choice. Do not speak as Rivest or claim an endorsement.',
+    portrait: { hair: '#37474F', shirt: '#BBDEFB', pants: '#0D47A1' },
+  }),
+  portrayal({
+    id: 'shamir',
+    name: 'Adi Shamir',
+    tag: 'SHAMIR',
+    role: 'One identity for the RSA workshop and for secret sharing, with different teaching context in each place.',
+    specialties: ['RSA', 'secret sharing', 'thresholds'],
+    regions: ['citadel', 'peaks'],
+    questions: ['What is a threshold?', 'How does RSA use a private exponent?'],
+    topics: ['rsa', 'ss'],
+    biography: {
+      fullName: 'Adi Shamir',
+      contribution: 'Coauthor of the 1978 RSA paper, and author of the 1979 paper on sharing a secret so that any threshold of shares reconstructs it.',
+      topics: ['rsa', 'ss'],
+      note: 'RSA is a joint paper with Rivest and Adleman. Secret sharing is the separate 1979 paper. One character uses both contexts. The short RSA workshop role is a game design choice, not a historical claim.',
+      sources: [
+        { label: 'A Method for Obtaining Digital Signatures and Public-Key Cryptosystems, Communications of the ACM, 1978', url: 'https://doi.org/10.1145/359340.359342' },
+        { label: 'How to Share a Secret, Communications of the ACM, 1979', url: 'https://doi.org/10.1145/359168.359176' },
+      ],
+    },
+    limits: 'Use the RSA paper in the citadel context and the secret-sharing paper in the peaks context. Do not merge them into one invention. Do not speak as Shamir.',
+    portrait: { hair: '#263238', shirt: '#FFE082', pants: '#E65100' },
+  }),
+  portrayal({
+    id: 'adleman',
+    name: 'Leonard Adleman',
+    tag: 'ADLEMAN',
+    role: 'Future RSA workshop guide for why factoring the modulus matters. The assignment is a game design choice.',
+    specialties: ['RSA', 'factoring'],
+    regions: ['citadel'],
+    questions: ['Why does RSA publish a product of two primes?'],
+    topics: ['rsa'],
+    biography: {
+      fullName: 'Leonard M. Adleman',
+      contribution: 'Coauthor of the 1978 RSA paper with Ron Rivest and Adi Shamir.',
+      topics: ['rsa'],
+      note: 'RSA is a joint contribution. Giving Adleman the factoring explanation in a future workshop is a game design choice, not a historical claim.',
+      sources: [
+        { label: 'A Method for Obtaining Digital Signatures and Public-Key Cryptosystems, Communications of the ACM, 1978', url: 'https://doi.org/10.1145/359340.359342' },
+      ],
+    },
+    limits: 'Teach the joint RSA construction and the paper’s reliance on factoring. Say the workshop role is a game design choice. Do not speak as Adleman.',
+    portrait: { hair: '#4E342E', shirt: '#DCEDC8', pants: '#33691E' },
+  }),
+  portrayal({
+    id: 'daemen',
+    name: 'Joan Daemen',
+    tag: 'DAEMEN',
+    role: 'Future guide for the Rijndael round. Modes of operation are a separate lesson.',
+    specialties: ['Rijndael', 'AES'],
+    regions: ['forge'],
+    questions: ['What is the block cipher, as distinct from a mode?'],
+    topics: ['blockcipher', 'modes'],
+    biography: {
+      fullName: 'Joan Daemen',
+      contribution: 'Co-designer, with Vincent Rijmen, of Rijndael, the block cipher NIST selected for AES.',
+      topics: ['blockcipher', 'modes'],
+      note: 'Rijndael is a joint design. AES is the standard in FIPS 197. Modes of operation are a separate topic from the block cipher.',
+      sources: [
+        { label: 'NIST FIPS 197, Advanced Encryption Standard', url: 'https://csrc.nist.gov/pubs/fips/197/final' },
+        { label: 'NIST announcement of the Rijndael selection, 2 October 2000', url: 'https://www.nist.gov/news-events/news/2000/10/commerce-department-announces-winner-global-information-security' },
+      ],
+    },
+    limits: 'Teach Rijndael as joint work with Vincent Rijmen, and keep the block cipher distinct from modes of operation. Do not speak as Daemen.',
+    portrait: { hair: '#546E7A', shirt: '#B3E5FC', pants: '#01579B' },
+  }),
+  portrayal({
+    id: 'rijmen',
+    name: 'Vincent Rijmen',
+    tag: 'RIJMEN',
+    role: 'Future guide for how AES uses Rijndael, and for the difference between a block cipher and a mode.',
+    specialties: ['Rijndael', 'AES', 'modes'],
+    regions: ['forge'],
+    questions: ['How is AES related to Rijndael?', 'Why is ECB different from the block cipher itself?'],
+    topics: ['blockcipher', 'modes'],
+    biography: {
+      fullName: 'Vincent Rijmen',
+      contribution: 'Co-designer, with Joan Daemen, of Rijndael, the block cipher NIST selected for AES.',
+      topics: ['blockcipher', 'modes'],
+      note: 'Rijndael is a joint design. The modes lesson shows ECB, CBC, and CTR applied to a picture. Those modes are not the block cipher.',
+      sources: [
+        { label: 'NIST FIPS 197, Advanced Encryption Standard', url: 'https://csrc.nist.gov/pubs/fips/197/final' },
+        { label: 'NIST announcement of the Rijndael selection, 2 October 2000', url: 'https://www.nist.gov/news-events/news/2000/10/commerce-department-announces-winner-global-information-security' },
+      ],
+    },
+    limits: 'Teach Rijndael as joint work with Joan Daemen. Distinguish the block cipher from modes of operation. Do not speak as Rijmen.',
+    portrait: { hair: '#37474F', shirt: '#FFCCBC', pants: '#BF360C' },
+  }),
+  portrayal({
+    id: 'rabin',
+    name: 'Michael Rabin',
+    tag: 'RABIN',
+    role: 'Future guide for oblivious transfer. He will say that more than one OT formulation exists.',
+    specialties: ['oblivious transfer'],
+    regions: ['market'],
+    questions: ['What does the 1981 oblivious transfer hide?', 'How is that different from 1-out-of-2 OT?'],
+    topics: ['ot'],
+    biography: {
+      fullName: 'Michael O. Rabin',
+      contribution: 'The 1981 Harvard technical report describes exchanging secrets by an oblivious transfer, later posted as IACR ePrint 2005/187.',
+      topics: ['ot'],
+      note: 'The Library OT visualization is the 1-out-of-2 formulation. That is a different formulation from the 1981 report. Alice and Bob will play sender and receiver when the market opens.',
+      sources: [
+        { label: 'How to Exchange Secrets with Oblivious Transfer, IACR ePrint 2005/187', url: 'https://eprint.iacr.org/2005/187' },
+        { label: 'IACR museum note on the 1981 technical report', url: 'https://iacr.org/museum/rabin-obt.html' },
+      ],
+    },
+    limits: 'Teach the 1981 oblivious transfer and say clearly that other formulations exist, including the 1-out-of-2 demo in the Library. Do not speak as Rabin.',
+    portrait: { hair: '#424242', shirt: '#E0F2F1', pants: '#004D40' },
+  }),
+  portrayal({
+    id: 'yao',
+    name: 'Andrew Yao',
+    tag: 'YAO',
+    role: 'Future guide for the millionaires’ problem and two-party computation.',
+    specialties: ['millionaires’ problem', 'two-party computation'],
+    regions: ['observatory'],
+    questions: ['What is the millionaires’ problem?', 'What does the garbled-circuit lesson demonstrate?'],
+    topics: ['gc'],
+    biography: {
+      fullName: 'Andrew Chi-Chih Yao',
+      contribution: 'The 1982 paper states the millionaires’ problem and secure computation of a function on private inputs. The 1986 paper treats two-party computation of functions with limited knowledge transfer.',
+      topics: ['gc'],
+      note: 'The Library garbled-circuit demo is this game’s visualization of two-party computation. It is not presented as a figure from the 1982 paper. Alice and Bob will hold the private inputs when the observatory opens.',
+      sources: [
+        { label: 'Protocols for Secure Computations, FOCS 1982', url: 'https://doi.org/10.1109/SFCS.1982.38' },
+        { label: 'How to Generate and Exchange Secrets, FOCS 1986', url: 'https://doi.org/10.1109/SFCS.1986.25' },
+      ],
+    },
+    limits: 'Teach the millionaires’ problem from the 1982 paper and two-party computation from the 1986 paper. Do not speak as Yao, and do not attribute unrelated protocols to him.',
+    portrait: { hair: '#263238', shirt: '#D1C4E9', pants: '#4A148C' },
+  }),
+];
+
+export const CHARACTER_BY_ID: Record<string, Character> = Object.fromEntries(CHARACTERS.map(character => [character.id, character]));
+export const REGION_BY_ID: Record<string, Region> = Object.fromEntries(REGIONS.map(region => [region.id, region]));
+
+const notice = portrayalNotice('Claude Shannon');
+
+export const APPEARANCES: Appearance[] = [
+  {
+    id: 'alice-plaza',
+    characterId: 'alice',
+    regionId: 'plaza',
+    x: 18.5,
+    y: 15.5,
+    inside: false,
+    guest: 'I am Alice. I keep my own inputs private, and I can still compute something together with Bob. The Library door is north of here. You can look around before you log in.',
+    signed: 'I am Alice. Ask me about private inputs, or walk west to Hash Forest, south to the bridge, and east to the gardens. Logging in lets me answer with Gemini.',
+    questions: ['What is a private input?', 'How can two people compute together?', 'Which way are the quests?'],
+    context: 'Central Plaza welcome. No protocol secret is assigned here.',
+  },
+  {
+    id: 'bob-plaza',
+    characterId: 'bob',
+    regionId: 'plaza',
+    x: 26.5,
+    y: 13.5,
+    inside: false,
+    guest: 'I am Bob. I can point you around. Hash Forest is west, the Key Exchange Bridge is south, and the Private Set Gardens are east. I do not see another person’s private inputs.',
+    signed: 'I am Bob. I can compare what each participant is allowed to know once you are in a quest. The three lessons still open from the Library.',
+    questions: ['How do I reach the three quests?', 'What is the difference between your view and Alice’s?'],
+    context: 'Central Plaza navigation. No protocol secret is assigned here.',
+  },
+  {
+    id: 'shannon',
+    characterId: 'shannon',
+    regionId: 'library',
+    x: 9.5,
+    y: 7.5,
+    inside: true,
+    guest: `${notice} Each library area is a building outside, and each one is drawn differently. Information theory asks what a message can reveal. Opening a visualization needs an account so the progress can be saved.`,
+    signed: `${notice} Ask about what a message can reveal, or open Meet the cryptographers. The five buildings outside are the library.`,
+    questions: ['What can a message reveal?', 'Which building should I open first?'],
+    context: 'Library Sanctuary. The five grounds buildings are the library areas. Teach information and secrecy from the listed papers and point to those rooms.',
+  },
+  {
+    id: 'alice-grove',
+    characterId: 'alice',
+    regionId: 'grove',
+    x: 6.5,
+    y: 12.5,
+    inside: false,
+    topic: 'hash',
+    guest: 'I am Alice in Hash Forest. A hash is not encryption. If my input changes, the digest changes. Hashing a short secret does not stop someone from guessing it. The lesson is in the Library.',
+    signed: 'I am Alice. I can show the input assigned to me and the digest. Open the hash lesson, then mark it learned to finish this quest.',
+    questions: ['Why is a hash not encryption?', 'What happens when the input changes?', 'Does hashing a short secret hide it?'],
+    context: 'Hash Forest. Alice has one assigned input and its digest.',
+  },
+  {
+    id: 'eve-grove',
+    characterId: 'eve',
+    regionId: 'grove',
+    x: 4.5,
+    y: 10.5,
+    inside: false,
+    topic: 'hash',
+    guest: 'I am Eve. I see the digest, not Alice’s input. The digest alone does not name that input. If the input is short and guessable, I can test guesses. I do not change her message.',
+    signed: 'I am Eve, still only an observer. Ask what a digest can reveal. I do not edit Alice’s input.',
+    questions: ['What can you learn from a digest?', 'Can you change Alice’s input?', 'When is guessing the input easy?'],
+    context: 'Hash Forest, passive. Eve sees only the digest.',
+  },
+  {
+    id: 'alice-bridge',
+    characterId: 'alice',
+    regionId: 'bridge',
+    x: 18.5,
+    y: 18.5,
+    inside: false,
+    topic: 'dh',
+    guest: 'I am Alice. Bob and I send public values across the bridge. Eve can see those values. She does not change them unless you leave this passive exchange.',
+    signed: 'I am Alice. In the passive exchange I know my exponent and the public values. Mallory is absent until you activate the attack simulation.',
+    questions: ['What do you send?', 'What do you keep private?', 'What changes if a public value is substituted?'],
+    context: 'Key Exchange Bridge. Passive unless the attack simulation is selected.',
+  },
+  {
+    id: 'bob-bridge',
+    characterId: 'bob',
+    regionId: 'bridge',
+    x: 20.5,
+    y: 18.5,
+    inside: false,
+    topic: 'dh',
+    guest: 'I am Bob. I send my public value and I see Alice’s. I do not see her exponent. Eve is watching, and she is not editing the messages.',
+    signed: 'I am Bob. Ask what I can know from my exponent and the messages I see. The lesson is the Diffie–Hellman visualization.',
+    questions: ['Which value do you send?', 'Can you see Alice’s exponent?'],
+    context: 'Key Exchange Bridge. Bob knows his own exponent and the messages he sees.',
+  },
+  {
+    id: 'eve-bridge',
+    characterId: 'eve',
+    regionId: 'bridge',
+    x: 18.5,
+    y: 21.5,
+    inside: false,
+    topic: 'dh',
+    guest: 'I am Eve. I see the public values on the bridge. I do not see the exponents, and I do not replace a message. Mallory is the one who tampers, and only in the attack simulation.',
+    signed: 'I am Eve. This is the passive view. I can say what the public values reveal and what they do not. I still do not edit them.',
+    questions: ['What can you see on the bridge?', 'Can you compute the shared key from what you see?', 'How is Mallory different?'],
+    context: 'Key Exchange Bridge, passive eavesdropper.',
+  },
+  {
+    id: 'mallory-bridge',
+    characterId: 'mallory',
+    regionId: 'bridge',
+    x: 20.5,
+    y: 21.5,
+    inside: false,
+    topic: 'dh',
+    guest: 'I am Mallory. I am not part of the passive exchange. I substitute a public value only after you activate the attack simulation. Eve cannot do that.',
+    signed: 'I am Mallory. Activate the attack simulation before asking me to substitute a message. The panel beside that simulation explains authentication.',
+    questions: ['What did you substitute?', 'How is this different from Eve?', 'What does authentication change?'],
+    context: 'Key Exchange Bridge. Mallory is idle until the attack simulation is selected.',
+  },
+  {
+    id: 'alice-garden',
+    characterId: 'alice',
+    regionId: 'garden',
+    x: 30.5,
+    y: 10.5,
+    inside: false,
+    topic: 'psi',
+    guest: 'I am Alice. This garden is my set. Bob’s garden is his set. The PSI and PSU visualizations do the computation. Hiding both sets from a passerby is not the whole security definition.',
+    signed: 'I am Alice. I know my set and, at the end of the demo, the intersection the lesson computes. I do not know Bob’s other items. Open the PSI lesson to see the calculation.',
+    questions: ['What is in your garden?', 'What does the intersection tell you?', 'What do you not learn about Bob?'],
+    context: 'Private Set Gardens. Alice knows her set. The PSI demo is the computation.',
+  },
+  {
+    id: 'bob-garden',
+    characterId: 'bob',
+    regionId: 'garden',
+    x: 34.5,
+    y: 10.5,
+    inside: false,
+    topic: 'psi',
+    guest: 'I am Bob. My garden is a different set from Alice’s. The lesson compares them. I am not shown her whole set.',
+    signed: 'I am Bob. Ask what my set and the demo’s intersection let me know. Alice’s other items are not mine to see.',
+    questions: ['What is in your garden?', 'What does Alice still keep private?'],
+    context: 'Private Set Gardens. Bob knows his set. The PSI demo is the computation.',
+  },
+  {
+    id: 'eve-garden',
+    characterId: 'eve',
+    regionId: 'garden',
+    x: 32.5,
+    y: 12.5,
+    inside: false,
+    topic: 'psi',
+    guest: 'I am Eve, optional here. I can see that Alice and Bob compare gardens. I do not receive either set. Their privacy from each other is part of the definition, not only privacy from me.',
+    signed: 'I am Eve. I can describe an outsider’s view. Do not treat my ignorance as the definition of PSI security.',
+    questions: ['What can an outsider see?', 'Does hiding the sets from you define PSI?'],
+    context: 'Private Set Gardens, optional observer. Eve does not receive either set.',
+  },
+  {
+    id: 'alice-grounds',
+    characterId: 'alice',
+    regionId: 'grounds',
+    x: 19.5,
+    y: 12.5,
+    inside: false,
+    guest: 'I am Alice. Follow the dirt path north to the sanctuary. The side buildings are the library: ciphers, hashes, public keys, computation, and private sets. Each one looks different. You can look around before you log in.',
+    signed: 'I am Alice. The dirt path leads to the sanctuary and the Cipher Catacombs. The side buildings are the five areas of the library.',
+    questions: ['Where does the path go?', 'What is a private input?'],
+    context: 'Library grounds, outside the sanctuary. The side buildings are the five library areas. No protocol secret is assigned here.',
+  },
+  {
+    id: 'bob-grounds',
+    characterId: 'bob',
+    regionId: 'grounds',
+    x: 14.5,
+    y: 12.5,
+    inside: false,
+    guest: 'I am Bob. West of the path: the key citadel, then the cipher court, then the overlap garden. East of the path: the hash crypt and the circuit shop. The north door is the sanctuary.',
+    signed: 'I am Bob. I can point you to the area that matches a topic. I still keep my own inputs.',
+    questions: ['Which building is which area?', 'What do you keep private?'],
+    context: 'Library grounds. Bob has no assigned protocol secret. The side buildings are the five library areas.',
+  },
+  {
+    id: 'alice-sanctuary',
+    characterId: 'alice',
+    regionId: 'sanctuary',
+    x: 4.5,
+    y: 3.5,
+    inside: true,
+    guest: 'I am Alice. This sanctuary is safe. The south door leads to the Cipher Catacombs. The five library areas are the buildings outside.',
+    signed: 'I am Alice. I can point you outside to a library area, or south to the dungeon door. Logging in lets me answer with Gemini.',
+    questions: ['Where is the dungeon door?', 'What is a private input?'],
+    context: 'Library Sanctuary. No protocol secret is assigned here.',
+  },
+  {
+    id: 'bob-sanctuary',
+    characterId: 'bob',
+    regionId: 'sanctuary',
+    x: 13.5,
+    y: 3.5,
+    inside: true,
+    guest: 'I am Bob. The south door is the Cipher Catacombs. The library areas are outside, and each one has its own look.',
+    signed: 'I am Bob. I keep my own inputs. I can tell you which outside building matches a topic.',
+    questions: ['Which building matches this topic?', 'What do you keep private?'],
+    context: 'Library Sanctuary. Bob has no assigned protocol secret.',
+  },
+  {
+    id: 'caesar-catacombs',
+    characterId: 'caesar',
+    regionId: 'catacombs',
+    x: 3.5,
+    y: 1.5,
+    inside: true,
+    topic: 'caesar',
+    guest: 'The gate states its shift. Suetonius describes a three-place letter shift. That description is not a claim that every substitution cipher belongs to Caesar.',
+    signed: 'The ciphertext and the shift are written on the gate. Ask for a hint, or open the Caesar visualization.',
+    questions: ['What does a fixed shift hide?', 'How do I undo a forward shift?'],
+    context: 'Cipher Catacombs shift gate. The ciphertext and the forward shift are public. Do not invent a different shift.',
+  },
+  {
+    id: 'vigenere-catacombs',
+    characterId: 'vigenere',
+    regionId: 'catacombs',
+    x: 3.5,
+    y: 2.5,
+    inside: true,
+    topic: 'vigenere',
+    guest: 'A keyword can pick a different shift for each letter. The repeating-keyword tableau is a later name. These gates do not ask for a hidden keyword.',
+    signed: 'Ask what a keyword changes. The gates in this dungeon state a single shift when they use one.',
+    questions: ['What does a keyword change in a polyalphabetic cipher?'],
+    context: 'Cipher Catacombs hall. Teach the polyalphabetic idea and the 1586 treatise. No keyword is assigned on these gates.',
+  },
+  {
+    id: 'kindi-catacombs',
+    characterId: 'kindi',
+    regionId: 'catacombs',
+    x: 10.5,
+    y: 1.5,
+    inside: true,
+    topic: 'freqan',
+    guest: 'Counting letters can expose a simple substitution when the language is known. This gate already states its shift.',
+    signed: 'The frequency tool counts letters you type. It does not choose the answer for you.',
+    questions: ['How can letter counts expose a simple substitution?'],
+    context: 'Cipher Catacombs. Teach frequency analysis from the edited treatise. The shift on this gate is already stated.',
+  },
+  {
+    id: 'eve-catacombs',
+    characterId: 'eve',
+    regionId: 'catacombs',
+    x: 3.5,
+    y: 1.5,
+    inside: true,
+    topic: 'otp',
+    guest: 'I am Eve. I can see the public bytes on this gate. I do not change, inject, or replace them.',
+    signed: 'I am Eve. Ask what an observer can see. I still do not edit the bytes.',
+    questions: ['What can you see on this gate?', 'Can you change the bytes?'],
+    context: 'Cipher Catacombs byte gate. Eve sees the public ciphertext and does not alter it.',
+  },
+  {
+    id: 'alice-catacombs',
+    characterId: 'alice',
+    regionId: 'catacombs',
+    x: 3.5,
+    y: 1.5,
+    inside: true,
+    guest: 'I am Alice. This last gate uses the XOR and the shift already practiced. The order is written on the gate.',
+    signed: 'I am Alice. Do the XOR first, then the shift. I do not keep a secret input on this gate.',
+    questions: ['Which operation comes first?', 'What is a private input?'],
+    context: 'Cipher Catacombs combined gate. The order of operations is public. Alice has no secret input here.',
+  },
+];
+
+export const APPEARANCE_BY_ID: Record<string, Appearance> = Object.fromEntries(APPEARANCES.map(appearance => [appearance.id, appearance]));

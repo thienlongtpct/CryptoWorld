@@ -147,6 +147,7 @@ export function DiffieHellman() {
           <Kv k={<>key (g<sup>a</sup>)<sup>b</sup></>} who="b">{mpow(A, b, P)}</Kv>
         </Pv>
       </div>
+      <p className="note">Educational parameters only: safe prime p = 1019 and generator g = 4. Both sides compute the same K = g<sup>ab</sup>. A real exchange uses a group thousands of bits long.</p>
     </Lab>
   );
 }

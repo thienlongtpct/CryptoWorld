@@ -1,0 +1,128 @@
+# Checks on every pull request and on main. Delivery runs on main once
+# AWS_DEPLOY_ROLE_ARN is set. The deploy job publishes the site artifact
+# produced by the check job.
+
+name: Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: visucrypto-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    name: Test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build the site
+        run: npm run build
+
+      - name: Check the built page
+        run: node scripts/check-dist.mjs
+
+      - name: Audit shipped dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Install the AWS stack
+        working-directory: infra
+        run: npm ci
+
+      - name: Audit the AWS toolchain
+        working-directory: infra
+        run: npm audit --audit-level=high
+
+      - name: Typecheck the AWS stack
+        working-directory: infra
+        run: npx tsc --noEmit
+
+      - name: Synthesize the AWS template
+        working-directory: infra
+        run: npx cdk synth -c githubRepo=${{ github.repository }} --no-notices
+
+      - name: Keep the tested site for delivery
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy:
+    name: Deliver to AWS
+    needs: check
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the tested site
+        uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: dist
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Check the site artifact again
+        run: node scripts/check-dist.mjs
+
+      - name: Install the AWS stack
+        working-directory: infra
+        run: npm ci
+
+      - name: Assume the delivery role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-west-2' }}
+          role-session-name: visucrypto-deploy
+
+      - name: Deploy
+        working-directory: infra
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          AWS_OIDC_PROVIDER_ARN: ${{ vars.AWS_OIDC_PROVIDER_ARN }}
+        run: |
+          args=(-c "githubRepo=${GITHUB_REPOSITORY}")
+          if [ -n "${AWS_OIDC_PROVIDER_ARN}" ]; then
+            args+=(-c "githubOidcProviderArn=${AWS_OIDC_PROVIDER_ARN}")
+          fi
+          npx cdk deploy VisuCrypto --require-approval never --outputs-file outputs.json "${args[@]}"
+
+      - name: Request the live site and the account API
+        run: node scripts/smoke.mjs

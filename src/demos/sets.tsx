@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useApp } from '../state';
-import { H2G, P, Q, bytesHex, enc, fmtBytes, h32, mod, mpow, okvsDecode, okvsEncode, rnd, short, shuffled } from '../lib/crypto';
+import { H2G, P, Q, bytesHex, enc, fmtBytes, h32, mod, mpow, okvsDecode, okvsEncode, rnd, setInputNotes, short, shuffled } from '../lib/crypto';
 import { Kv, Lab, List, LogBars, Msg, Pv, S, Seg, Steps } from '../components/ui';
 
 // ---------- shared playground sets + Venn diagram ----------
@@ -19,7 +19,8 @@ export function Playground() {
         <div className="vboth"><span className="cap">A ∩ B ({I.length})</span>{chips(I, 'both')}</div>
         <div className="vb-only"><span className="cap">B only</span>{chips(B.filter(x => !A.includes(x)), 'b-chip')}</div>
       </div>
-      <p className="note">The Venn view is the omniscient "ideal" picture. The private set union and PSI variants entries reuse these two sets.</p>
+      <p className="note">The Venn view is the ideal picture of the sets, not what a private protocol reveals. The private set union and PSI variants entries reuse these two sets.</p>
+      {(setInputNotes(setA) || setInputNotes(setB)) && <p className="note">{[setInputNotes(setA) && `A: ${setInputNotes(setA)}`, setInputNotes(setB) && `B: ${setInputNotes(setB)}`].filter(Boolean).join(' ')}</p>}
     </Lab>
   );
 }
@@ -30,18 +31,31 @@ interface Proto { desc: string; steps: PStep[] }
 export type ProtoId = 'naive' | 'dh' | 'oprf' | 'vole' | 'circuit';
 const DICT = ['ana', 'ben', 'cho', 'dev', 'eli', 'fay', 'gus', 'hal', 'ivy', 'jo', 'kai', 'lee', 'max', 'ned', 'oz', 'pat', 'quin', 'ray', 'sam', 'tom', 'uma', 'val', 'wes', 'xi', 'yan', 'zoe', 'alice', 'bob', 'carol', 'dave'];
 const setStr = (xs: string[]) => `{${xs.join(', ')}}`;
+/** Real string intersection, plus a warning when the toy hash reports something else. */
+function intersectionReport(reported: string[], truth: string[]) {
+  const extra = [...new Set(reported.filter(x => !truth.includes(x)))];
+  const missed = truth.filter(x => !reported.includes(x));
+  if (!extra.length && !missed.length) return `A ∩ B = ${setStr(truth)}`;
+  return `Real intersection A ∩ B = ${setStr(truth)}. This simplified hash also ${extra.length ? `matched ${setStr(extra)}` : ''}${extra.length && missed.length ? ' and ' : ''}${missed.length ? `missed ${setStr(missed)}` : ''}, because two different strings can share one toy hash. A real protocol uses a collision-resistant hash.`;
+}
 
 export function buildProto(id: ProtoId, SA: string[], SB: string[]): Proto {
   const I = SA.filter(a => SB.includes(a));
   if (id === 'naive') {
     const hA = SA.map(a => [a, short(a)] as const);
+    const hashHits = SB.filter(b => hA.some(([, h]) => h === short(b)));
     const recovered = hA.filter(([, h]) => DICT.concat(SB).some(w => short(w) === h)).map(([a]) => a);
     return {
       desc: 'Alice just hashes her items and sends the hashes. Simple, and broken: if items come from a small or guessable domain (names, phone numbers), Bob can hash a dictionary and invert everything.',
       steps: [
         { n: 'Alice hashes', a: <List items={hA.map(([a, h]) => <><S a>{a}</S> → {h}</>)} />, w: <div className="muted">nothing yet</div>, b: null, la: [], lb: [] },
         { n: 'Send hashes', a: <div className="note">waiting</div>, w: <Msg dir="Alice → Bob">{shuffled(hA).map(x => x[1]).join(' ')}</Msg>, b: <div className="note">receives |A| hashes</div>, la: [], lb: [`|A| = ${SA.length}`, 'H(a) for each a'] },
-        { n: 'Bob compares', a: null, w: <Msg dir="Bob → Alice">matches: {I.map(short).join(' ') || '∅'}</Msg>, b: <List items={SB.map(b => <><S b>{b}</S> → {short(b)} {hA.some(([, h]) => h === short(b)) && <span className="ok">match</span>}</>)} />, la: [`A ∩ B = ${setStr(I)}`], lb: [`A ∩ B = ${setStr(I)}`] },
+        { n: 'Bob compares', a: null, w: <Msg dir="Bob → Alice">matches: {hashHits.map(short).join(' ') || '∅'}</Msg>, b: <List items={SB.map(b => {
+          const hit = hA.find(([, h]) => h === short(b));
+          if (hit && SA.includes(b)) return <><S b>{b}</S> → {short(b)} <span className="ok">match</span></>;
+          if (hit) return <><S b>{b}</S> → {short(b)} <span className="bad">toy hash collision with {hit[0]}</span></>;
+          return <><S b>{b}</S> → {short(b)}</>;
+        })} />, la: [intersectionReport(I, I)], lb: [intersectionReport(SB.flatMap(b => { const hit = hA.find(([, h]) => h === short(b)); return hit ? [SA.includes(b) ? b : hit[0]] : []; }), I)] },
         { n: 'Dictionary attack', a: <div className="bad">Her non-matching items were exposed too.</div>, w: <div className="muted">offline, no messages</div>, b: <><div className="note">hashes {DICT.length} common names and compares</div><List items={recovered.map(a => <><span className="bad">{a}</span> recovered</>)} /></>, la: [], lb: [<span className="bad">recovered {recovered.length}/{SA.length} of Alice's items: {setStr(recovered)}</span>] },
       ],
     };
@@ -52,11 +66,14 @@ export function buildProto(id: ProtoId, SA: string[], SB: string[]): Proto {
     const YB = shuffled(SB).map(b => mpow(H2G(b), be, P)), YBA = YB.map(v => mpow(v, al, P));
     const found = XAB.filter(([, v]) => YBA.includes(v)).map(([a]) => a);
     return {
-      desc: 'Meadows (1986) and Huberman–Franklin–Hogg (1999): because exponentiation commutes, H(x)^(αβ) = H(x)^(βα). Equal items collide only after both secret exponents are applied.',
+      desc: 'Meadows (1986) and Huberman–Franklin–Hogg (1999): because exponentiation commutes, H(x)^(αβ) = H(x)^(βα). This is a simplified trace with a toy hash into a 10-bit group, not a complete secure protocol. A real deployment needs a collision-resistant hash into a large group.',
       steps: [
         { n: 'Alice blinds', a: <><Kv k="α" who="a">{al}</Kv><List items={XA.map(([a, v]) => <><S a>{a}</S>: H(a)<sup>α</sup> = {v}</>)} /></>, w: <Msg dir="Alice → Bob">{XA.map(x => x[1]).join(' ')}</Msg>, b: null, la: [], lb: [`|A| = ${SA.length}`] },
         { n: 'Bob re-blinds', a: null, w: <><Msg dir="Bob → Alice (same order)">H(a)<sup>αβ</sup>: {XAB.map(x => x[1]).join(' ')}</Msg><Msg dir="Bob → Alice (shuffled)">H(b)<sup>β</sup>: {YB.join(' ')}</Msg></>, b: <><Kv k="β" who="b">{be}</Kv><div className="note">raises each received value to β and sends his own items blinded with β</div></>, la: [`|B| = ${SB.length}`], lb: [] },
-        { n: 'Alice compares', a: <><div className="note">computes (H(b)<sup>β</sup>)<sup>α</sup></div><List items={YBA.map(v => <>{v} {XAB.some(([, w]) => w === v) && <span className="ok">match</span>}</>)} /></>, w: null, b: <div className="note">done; learned nothing else</div>, la: [`A ∩ B = ${setStr(found)}`], lb: [] },
+        { n: 'Alice compares', a: <><div className="note">computes (H(b)<sup>β</sup>)<sup>α</sup>. Simplified DH-PSI: a match of group elements, not a proof the strings are equal.</div><List items={YBA.map(v => {
+          const hit = XAB.find(([, w]) => w === v);
+          return <>{v} {hit && (SB.includes(hit[0]) ? <span className="ok">match</span> : <span className="bad">toy collision</span>)}</>;
+        })} /></>, w: null, b: <div className="note">done; learned nothing else</div>, la: [intersectionReport(found, I)], lb: [] },
       ],
     };
   }
@@ -69,7 +86,11 @@ export function buildProto(id: ProtoId, SA: string[], SB: string[]): Proto {
       steps: [
         { n: 'Oblivious evaluation', a: <List items={runs.map(r => <><S a>{r.a}</S> → F<sub>k</sub> = <S a>{r.f}</S></>)} />, w: <>{runs.map((r, i) => <Msg key={i} dir="blinded ⇄ response">{r.bl} ⇄ {r.rs}</Msg>)}</>, b: <><Kv k="key k" who="b">{k}</Kv><div className="note">only sees blinded values</div></>, la: [], lb: [`|A| = ${SA.length}`] },
         { n: 'Bob sends PRF values', a: null, w: <Msg dir="Bob → Alice (shuffled)">{FB.join(' ')}</Msg>, b: <List items={SB.map(b => <><S b>{b}</S> → {F(b)}</>)} />, la: [`|B| = ${SB.length}`], lb: [] },
-        { n: 'Alice compares', a: <List items={runs.map(r => <>{r.a}: {FB.includes(r.f) ? <span className="ok">in B</span> : <span className="muted">not in B</span>}</>)} />, w: null, b: null, la: [`A ∩ B = ${setStr(SA.filter(a => FB.includes(F(a))))}`], lb: [] },
+        { n: 'Alice compares', a: <List items={runs.map(r => {
+          const hit = FB.includes(r.f);
+          const real = SB.includes(r.a);
+          return <>{r.a}: {hit && real ? <span className="ok">in B</span> : hit ? <span className="bad">toy hash collision</span> : <span className="muted">not in B</span>}</>;
+        })} />, w: null, b: null, la: [intersectionReport(SA.filter(a => FB.includes(F(a))), I)], lb: [] },
       ],
     };
   }
@@ -89,7 +110,10 @@ export function buildProto(id: ProtoId, SA: string[], SB: string[]): Proto {
         { n: 'Silent VOLE', a: <><Kv k="A" who="a">{cut(Av)}</Kv><Kv k="C" who="a">{cut(Cv)}</Kv></>, w: <div className="note">PCG seeds only; length-{m} VOLE expands locally</div>, b: <><Kv k="Δ" who="b">{D}</Kv><Kv k="B = C + A·Δ" who="b">{cut(Bv)}</Kv></>, la: [], lb: [] },
         { n: 'Alice sends OKVS', a: <Kv k="P = Encode{a ↦ H(a)}" who="a">{cut(encP.P)}</Kv>, w: <><Msg dir="Alice → Bob">D = P − A: {cut(Dv)}</Msg><div className="note">D is masked by uniform A, so it looks random.</div></>, b: null, la: [], lb: ["an OKVS-sized vector, nothing about A's contents"] },
         { n: 'Bob evaluates', a: null, w: <Msg dir="Bob → Alice (shuffled)">{FB.join(' ')}</Msg>, b: <><Kv k="K = B + D·Δ" who="b">{cut(Kv_)}</Kv><List items={SB.map(b => <><S b>{b}</S> → H(Decode(K,b) − Δ·H(b)) = {fb(b)}</>)} /></>, la: [`|B| = ${SB.length}`], lb: [] },
-        { n: 'Alice compares', a: <List items={SA.map(a => <>{a}: H(Decode(C,a)) = {fa(a)} {FB.includes(fa(a)) && <span className="ok">match</span>}</>)} />, w: null, b: null, la: [`A ∩ B = ${setStr(SA.filter(a => FB.includes(fa(a))))}`], lb: [] },
+        { n: 'Alice compares', a: <List items={SA.map(a => {
+          const hit = FB.includes(fa(a));
+          return <>{a}: H(Decode(C,a)) = {fa(a)} {hit && SB.includes(a) ? <span className="ok">match</span> : hit ? <span className="bad">toy hash collision</span> : null}</>;
+        })} />, w: null, b: null, la: [intersectionReport(SA.filter(a => FB.includes(fa(a))), I)], lb: [] },
       ],
     };
   }

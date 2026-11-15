@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { ENTRIES, ENTRY_BY_ID, type Entry } from '../data/entries';
+import { ENTRIES, ENTRY_BY_ID, termHref, type Entry } from '../data/entries';
 import { DEMOS } from '../demos';
 import { Html } from '../components/ui';
 import { AzBar } from '../components/Header';
 import { TOPICS } from '../vis/registry';
+import { Practice } from '../components/Practice';
 
 function SeeAlso({ ids }: { ids: string[] }) {
-  return <>{ids.filter(i => ENTRY_BY_ID[i]).map((i, n) => <span key={i}>{n > 0 && ', '}<a href={`#${i}`}>{ENTRY_BY_ID[i].headword}</a></span>)}</>;
+  return <>{ids.filter(i => ENTRY_BY_ID[i]).map((i, n) => <span key={i}>{n > 0 && ', '}<a href={termHref(i)}>{ENTRY_BY_ID[i].headword}</a></span>)}</>;
 }
 
 /** A dictionary entry. `lecture` drops the demo (used by the e-Lecture panel on visualization pages). */
@@ -62,20 +63,21 @@ export function TermPage({ id }: { id: string }) {
             last = l;
             return [
               head && <li key={'h' + l} className="lt">{l}</li>,
-              <li key={x.id} className={x.short ? 'short' : ''}><a href={`#${x.id}`} className={x.id === id ? 'cur' : ''}>{x.headword}</a></li>,
+              <li key={x.id} className={x.short ? 'short' : ''}><a href={termHref(x.id)} className={x.id === id ? 'cur' : ''}>{x.headword}</a></li>,
             ];
           })}
           <li className="lt"><a href="#bib" style={{ padding: 0 }}>Bibliography</a></li>
         </ul>
       </aside>
-      <div id="entries">
-        <nav className="crumbs" aria-label="Breadcrumb"><a href="#top">Home</a> › <a href="#terms">Dictionary</a> › <a href={`#L-${L}`}>{L}</a> › {e.headword}</nav>
+      <div id="entries" key={id}>
+        <nav className="crumbs" aria-label="Breadcrumb"><a href="#library">Library</a> › <a href="#terms">Dictionary</a> › <a href={`#L-${L}`}>{L}</a> › {e.headword}</nav>
         {/* key: remount demos when moving between terms so their state starts fresh */}
         {TOPICS.some(t => t.entry === id) && <p className="xref"><span><b>Visualization</b><a href={`#${TOPICS.find(t => t.entry === id)!.id}`}>Open the step-by-step visualization →</a></span></p>}
         <EntryView key={id} e={e} />
+        <Practice key={id} entryId={id} />
         <nav className="prevnext" aria-label="Neighbouring terms">
-          {prev && <a className="prev" href={`#${prev.id}`}><span>← previous</span><b>{prev.headword}</b></a>}
-          {next && <a className="next" href={`#${next.id}`}><span>next →</span><b>{next.headword}</b></a>}
+          {prev && <a className="prev" href={termHref(prev.id)}><span>← previous</span><b>{prev.headword}</b></a>}
+          {next && <a className="next" href={termHref(next.id)}><span>next →</span><b>{next.headword}</b></a>}
         </nav>
       </div>
     </div>

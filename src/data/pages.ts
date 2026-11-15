@@ -91,7 +91,7 @@ export const PAGES: Record<string, PageContent> = {
    {
     "id": "mo-hash",
     "title": "Hash functions",
-    "intro": "<div class=\"prose\"><p>A cryptographic hash maps any input to a short fixed-length digest. It should be <b>one-way</b> (preimage resistant) and <b>collision resistant</b>, and in practice behave like a random function: change one character and about half of the 256 output bits flip. This demo uses your browser's real SHA-256.</p></div>",
+    "intro": "<div class=\"prose\"><p>A cryptographic hash maps any input to a short fixed-length digest. It should be <b>one-way</b> (preimage resistant) and <b>collision resistant</b>, and in practice behave like a random function: change one character, or exactly one bit of the UTF-8 input, and about half of the 256 output bits flip. This demo uses your browser's real SHA-256.</p></div>",
     "outro": "",
     "widget": "mo-hash"
    },
