@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useAccount } from '../account';
 import {
   APPEARANCES,
@@ -123,48 +123,69 @@ export function Talk({ spot, user, onClose, onOpen, onDirectory }: {
   onDirectory: () => void;
 }) {
   const { openAuth } = useAccount();
+  const titleId = useId();
+  const boxRef = useRef<HTMLDivElement>(null);
+  // Focus the box itself: the dialogue can open as you walk up, and a held Space or Enter must not press a button.
+  useEffect(() => { boxRef.current?.focus(); }, [spot.id]);
   const character = spot.characterId ? CHARACTER_BY_ID[spot.characterId] : undefined;
-  const appearance = APPEARANCES.find(item => item.id === spot.id);
+  // Room spots reuse the cast's appearance for the same character and region.
+  const appearance = APPEARANCES.find(item => item.id === spot.id)
+    ?? APPEARANCES.find(item => item.characterId === spot.characterId && item.regionId === spot.regionId);
   const text = user ? spot.signed : spot.guest;
-  const title = spot.place && character ? `${character.name} · ${spot.place}` : spot.name;
+  const portrayal = character?.type === 'portrayal';
+  // The portrayal notice is shown once, as a caption, instead of repeated inside the speech.
+  const notice = character && portrayal ? portrayalNotice(character.name) : '';
+  const speech = notice && text.startsWith(notice) ? text.slice(notice.length).trim() : text;
+  const lesson = spot.topic ? TOPIC_BY_ID[spot.topic] : undefined;
   return (
-    <Panel title={title} closeLabel="Continue exploring" onClose={onClose} backdrop cardClass="cw-talk">
-      {character && (
-        <div className="cw-who">
-          <Portrait portrait={character.portrait} />
-          <div>
-            <b>{character.role}</b>
-            {character.type === 'portrayal' && <span className="cw-badge">{PORTRAYAL_BADGE}</span>}
+    <div
+      className="cw-modal cw-talk-layer"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      onClick={event => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <div className="cw-dialog" ref={boxRef} tabIndex={-1}>
+        <header className="cw-dialog-head">
+          {character && <Portrait portrait={character.portrait} />}
+          <div className="cw-dialog-name">
+            <h2 id={titleId}>{character?.name ?? spot.name}</h2>
+            <p>
+              {spot.place ?? ''}
+              {portrayal && <span className="cw-badge" title={notice}>{PORTRAYAL_BADGE}</span>}
+            </p>
           </div>
-        </div>
-      )}
-      {character?.type === 'portrayal' && <p>{portrayalNotice(character.name)}</p>}
-      <p>{text}</p>
-      {character && user && appearance && (
-        <Ask
-          character={character}
-          regionId={appearance.regionId}
-          questions={appearance.questions}
-        />
-      )}
-      {character && !user && (
-        <button type="button" className="btn" onClick={() => openAuth('signin', `Log in to ask ${character.name} a question. The introduction stays available without an account.`)}>
-          Log in to ask a question
-        </button>
-      )}
-      <div className="cw-actions">
-        {spot.characterId === 'shannon' && <button type="button" className="btn" autoFocus onClick={onDirectory}>Meet the cryptographers</button>}
-        {spot.topic && user && <button type="button" className="btn" autoFocus onClick={() => onOpen(spot.topic!)}>Open the lesson</button>}
-        {spot.topic && !user && <button type="button" className="btn" autoFocus onClick={() => onOpen(spot.topic!)}>Log in to open this lesson</button>}
+          <button type="button" className="cw-x" aria-label="Close and keep exploring" onClick={onClose}>✕</button>
+        </header>
+        <p className="cw-speech">{speech}</p>
+        {portrayal && <p className="cw-caption">{notice}</p>}
+        {(spot.characterId === 'shannon' || lesson || (character && !user)) && (
+          <div className="cw-chips">
+            {lesson && (
+              <button type="button" className="btn" onClick={() => onOpen(spot.topic!)}>
+                {user ? `Open ${lesson.title}` : `Log in to open ${lesson.title}`}
+              </button>
+            )}
+            {spot.characterId === 'shannon' && <button type="button" className="btn" onClick={onDirectory}>Meet the cryptographers</button>}
+            {character && !user && (
+              <button type="button" className="btn ghost" onClick={() => openAuth('signin', `Log in to ask ${character.name} a question. The introduction stays available without an account.`)}>
+                Log in to ask
+              </button>
+            )}
+          </div>
+        )}
+        {character && user && appearance && (
+          <Ask character={character} regionId={appearance.regionId} questions={appearance.questions} />
+        )}
       </div>
-    </Panel>
+    </div>
   );
 }
 
 function Ask({ character, regionId, questions }: { character: Character; regionId: string; questions: string[] }) {
   const [mode, setMode] = useState<AskMode>('explain');
   const [attack, setAttack] = useState(false);
-  const [question, setQuestion] = useState(questions[0] ?? '');
+  const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -172,10 +193,12 @@ function Ask({ character, regionId, questions }: { character: Character; regionI
   const scenario: Scenario = bridge && attack && character.id !== 'eve' ? 'active' : 'passive';
   const malloryWaiting = character.id === 'mallory' && !attack;
   const roleAllowed = character.type === 'protocol';
+  const canAttack = bridge && character.id !== 'eve';
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (busy || !question.trim()) return;
+  async function send(text: string) {
+    const q = text.trim();
+    if (busy || !q) return;
+    setQuestion(q);
     setBusy(true);
     setError('');
     setAnswer('');
@@ -184,7 +207,7 @@ function Ask({ character, regionId, questions }: { character: Character; regionI
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ characterId: character.id, regionId, mode, question, scenario }),
+        body: JSON.stringify({ characterId: character.id, regionId, mode, question: q, scenario }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -199,53 +222,58 @@ function Ask({ character, regionId, questions }: { character: Character; regionI
     }
   }
 
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    void send(question);
+  }
+
   return (
-    <form className="cw-ask" onSubmit={submit}>
-      {character.id === 'eve' && <p>Eve is watching the public messages. She does not change them.</p>}
-      {bridge && character.id !== 'eve' && !attack && (
-        <button type="button" className="btn" onClick={() => setAttack(true)}>Activate the attack simulation</button>
-      )}
-      {bridge && attack && character.id !== 'eve' && <p className="cw-attack">{BRIDGE_ATTACK}</p>}
-      {malloryWaiting && <p>Mallory stays out of the passive exchange until the attack simulation is on.</p>}
-      {!malloryWaiting && (
-        <>
-          <div className="cw-actions">
-            <button type="button" className="btn" aria-pressed={mode === 'explain'} onClick={() => setMode('explain')}>Explain the protocol</button>
-            {roleAllowed && (
-              <button type="button" className="btn" aria-pressed={mode === 'role'} onClick={() => { setMode('role'); setQuestion('What can you know at this step?'); }}>
-                What can you know at this step?
-              </button>
+    <form className="cw-dialog-ask" onSubmit={submit}>
+      <div className="cw-dialog-row">
+        {!malloryWaiting && roleAllowed && (
+          <div className="cw-seg" role="group" aria-label="Kind of answer">
+            <button type="button" aria-pressed={mode === 'explain'} title="A teaching overview of the whole protocol" onClick={() => setMode('explain')}>Overview</button>
+            <button type="button" aria-pressed={mode === 'role'} title={`Only what ${character.name} can know`} onClick={() => setMode('role')}>{character.name}’s view</button>
+          </div>
+        )}
+        {canAttack && (
+          <button type="button" className="cw-toggle" aria-pressed={attack} onClick={() => { setAttack(on => !on); setAnswer(''); }}>
+            {attack ? 'Attack on' : 'Simulate attack'}
+          </button>
+        )}
+      </div>
+      {attack && canAttack && <p className="cw-caption cw-warn">{BRIDGE_ATTACK}</p>}
+      {malloryWaiting
+        ? <p className="cw-caption">Mallory stays out of the passive exchange. Turn on the attack simulation to ask.</p>
+        : (
+          <>
+            {!answer && !busy && questions.length > 0 && (
+              <div className="cw-chips" aria-label="Suggested questions">
+                {questions.map(item => (
+                  <button key={item} type="button" className="cw-chip" onClick={() => void send(item)}>{item}</button>
+                ))}
+              </div>
             )}
-          </div>
-          <p>{mode === 'role' ? 'This asks only for the view assigned to this character.' : 'This asks for a teaching overview, which is separate from one participant’s knowledge.'}</p>
-          <div className="cw-actions">
-            {questions.map(item => (
-              <button key={item} type="button" className="btn ghost" onClick={() => setQuestion(item)}>{item}</button>
-            ))}
-          </div>
-          <div className="cw-question-label">
-            <span>Question</span>
-            <span className="cw-question">
-              <textarea
-                aria-label="Question"
+            {(busy || answer || error) && (
+              <div className="cw-reply" aria-live="polite">
+                {busy && <p className="cw-caption">{character.name} is thinking…</p>}
+                {error && <p className="cw-attack" role="alert">{error}</p>}
+                {answer && <p><b>{question}</b></p>}
+                {answer && <p>{answer}</p>}
+              </div>
+            )}
+            <div className="cw-input">
+              <input
+                aria-label={`Ask ${character.name}`}
+                placeholder={`Ask ${character.name}…`}
                 value={question}
                 maxLength={400}
                 onChange={event => setQuestion(event.target.value)}
-                onKeyDown={event => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault();
-                    event.currentTarget.form?.requestSubmit();
-                  }
-                }}
               />
-              <button type="submit" className="btn cw-send" disabled={busy || !question.trim()}>{busy ? '…' : 'Send'}</button>
-            </span>
-          </div>
-          <p>Enter sends the question.</p>
-        </>
-      )}
-      {error && <p className="cw-attack" role="alert">{error}</p>}
-      {answer && <p className="cw-answer">{answer}</p>}
+              <button type="submit" className="btn" disabled={busy || !question.trim()}>{busy ? '…' : 'Ask'}</button>
+            </div>
+          </>
+        )}
     </form>
   );
 }

@@ -69,3 +69,29 @@ test('Mallory is refused until the attack simulation is selected', async () => {
   assert.equal(result.status, 400);
   assert.match(result.body.error, /attack simulation/);
 });
+
+test('Gemini gets a low thinking level, and a cut-off answer is reported instead of shown', async () => {
+  const { answerNpc } = await import('../server/npc.mjs');
+  const body = { characterId: 'alice', regionId: 'sanctuary', mode: 'explain', scenario: 'passive', question: 'What is a private input?' };
+  const realFetch = globalThis.fetch;
+  let sent;
+  const reply = (finishReason, parts) => async (_url, init) => {
+    sent = JSON.parse(init.body);
+    return new Response(JSON.stringify({ candidates: [{ finishReason, content: { parts } }] }), { status: 200 });
+  };
+  try {
+    globalThis.fetch = reply('MAX_TOKENS', [{ text: ' view? Yes. own: null' }]);
+    const cut = await answerNpc({ gemini: 'test-key', model: 'test-model', body });
+    assert.equal(cut.status, 502);
+    assert.match(cut.body.error, /cut off/);
+    assert.equal(sent.generationConfig.thinkingConfig.thinkingLevel, 'low');
+    assert.match(sent.systemInstruction.parts[0].text, /at most three short sentences/);
+
+    globalThis.fetch = reply('STOP', [{ text: 'private notes', thought: true }, { text: 'A private input stays with its owner.' }]);
+    const ok = await answerNpc({ gemini: 'test-key', model: 'test-model', body });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.answer, 'A private input stays with its owner.');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

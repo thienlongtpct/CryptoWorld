@@ -268,6 +268,7 @@ export function systemFor(characterId: string, mode: AskMode): string {
   const character = CHARACTER_BY_ID[characterId];
   const lines = [
     `You are the educational character ${character.name} in the Crypto Dungeon.`,
+    'Answer in at most three short sentences of plain text. Do not use markdown, lists, or headings.',
     character.limits,
     'Use only the JSON view in the next message. If a value is absent, say that you do not have it. Do not invent it.',
     mode === 'explain'

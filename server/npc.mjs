@@ -25,7 +25,8 @@ async function callGemini({ gemini, model, system, view, question }) {
             { text: `Question:\n${question}` },
           ],
         }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 700 },
+        // Thinking tokens count toward maxOutputTokens, so keep thinking low and leave headroom for the answer.
+        generationConfig: { temperature: 0.4, maxOutputTokens: 1500, thinkingConfig: { thinkingLevel: 'low' } },
       }),
       signal: AbortSignal.timeout(15000),
     });
@@ -33,7 +34,11 @@ async function callGemini({ gemini, model, system, view, question }) {
     return { status: 504, body: { error: 'Gemini took too long. The scripted introduction is still available.' } };
   }
   const data = await response.json().catch(() => ({}));
-  const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim() || '';
+  const candidate = data?.candidates?.[0];
+  const text = candidate?.content?.parts?.filter(part => !part.thought).map(part => part.text || '').join('').trim() || '';
+  if (response.ok && candidate?.finishReason === 'MAX_TOKENS') {
+    return { status: 502, body: { error: 'The answer was cut off. Try a shorter or more specific question.' } };
+  }
   if (!response.ok || !text) {
     const message = data?.error?.message;
     const safe = typeof message === 'string' && !message.includes(gemini) ? message : 'Gemini did not return a tutoring answer.';
