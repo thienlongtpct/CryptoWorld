@@ -1,6 +1,15 @@
-export type Tile = 'stone' | 'plank' | 'grass' | 'path' | 'tree' | 'water' | 'wall' | 'torch' | 'shelf' | 'desk' | 'gate' | 'engraving' | 'chest' | 'door' | 'wheel' | 'block' | 'pedestal' | 'wire' | 'mix';
+export type Tile =
+  | 'stone' | 'plank' | 'grass' | 'path' | 'tree' | 'water' | 'wall' | 'torch' | 'shelf' | 'desk' | 'gate'
+  | 'engraving' | 'chest' | 'door' | 'wheel' | 'block' | 'pedestal' | 'wire' | 'mix'
+  // Outdoor decor
+  | 'flower' | 'plants' | 'mushroom' | 'bush' | 'rock' | 'deadtree' | 'cobble' | 'bridge'
+  // Indoor decor
+  | 'paving' | 'carpet' | 'grate' | 'vent' | 'banner' | 'bars' | 'pillar' | 'crystal';
 
-const SOLID = new Set<Tile>(['wall', 'torch', 'shelf', 'desk', 'chest', 'gate', 'tree', 'water', 'block', 'pedestal', 'mix']);
+const SOLID = new Set<Tile>([
+  'wall', 'torch', 'shelf', 'desk', 'chest', 'gate', 'tree', 'water', 'block', 'pedestal', 'mix',
+  'bush', 'rock', 'deadtree', 'vent', 'banner', 'bars', 'pillar', 'crystal',
+]);
 
 export type SpotKind = 'person' | 'shelf' | 'door' | 'gate' | 'future' | 'chest';
 

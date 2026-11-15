@@ -49,13 +49,71 @@ const people: Record<string, HTMLImageElement> = {
   kindi: load(mageUrl),
 };
 
+/** Pixel rectangles in vegetation.png: [x, y, w, h]. Colour variants sit 48 px apart. */
+const VEG = {
+  bigBush: [2, 99, 43, 43],
+  roundBush: [198, 6, 35, 33],
+  shadowBush: [194, 86, 39, 33],
+  smallBush: [2, 5, 29, 27],
+  leaf: [80, 147, 31, 25],
+  fern: [112, 166, 32, 26],
+  cattail: [145, 166, 15, 26],
+  lupine: [195, 161, 11, 31],
+  lupineSmall: [212, 165, 9, 27],
+  sprout: [97, 177, 14, 15],
+  sproutSmall: [3, 178, 11, 13],
+  deadTree: [164, 290, 39, 46],
+  mushroom: [49, 338, 14, 14],
+  mushroomSmall: [36, 340, 8, 9],
+  crystal: [19, 353, 11, 14],
+  rocks: [256, 400, 15, 16],
+  rock: [224, 416, 11, 10],
+  pebble: [242, 403, 10, 8],
+} as const;
+
+/** Small flowers: four colour rows, five shapes each. */
+const FLOWER_ROWS = [373, 389, 405, 421];
+const FLOWER_COLS = [53, 69, 86, 100, 117];
+
+/** Teal flagstones in dungeon.png that tile cleanly. */
+const DUNGEON_FLOOR: [number, number][] = [
+  [5, 1], [5, 1], [4, 0], [5, 0], [6, 0], [4, 1], [6, 1], [4, 2], [5, 2], [6, 2], [5, 1], [6, 1],
+];
+
+type Ground = 'grass' | 'dirt' | 'cobble' | 'water' | 'dungeon' | 'sand' | 'paving' | 'bridge' | 'wall';
+
+/** The ground a tile is painted on. Objects return null and borrow the ground around them. */
+function groundOf(tile: Tile | undefined): Ground | null {
+  switch (tile) {
+    case 'grass': return 'grass';
+    case 'path': return 'dirt';
+    case 'cobble': return 'cobble';
+    case 'water': return 'water';
+    case 'bridge': return 'bridge';
+    case 'stone': case 'engraving': case 'grate': return 'dungeon';
+    case 'plank': return 'sand';
+    case 'paving': return 'paving';
+    case 'wall': case 'torch': case 'vent': case 'banner': return 'wall';
+    default: return null;
+  }
+}
+
+const WALLISH = new Set<Tile>(['wall', 'torch', 'vent', 'banner']);
+
+function hash(x: number, y: number, salt = 0) {
+  let h = (x * 374761393 + y * 668265263 + salt * 2246822519) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
 export function paint(ctx: CanvasRenderingContext2D, width: number, height: number, dpr: number, state: PaintState) {
   const padTop = state.insetTop * dpr;
   const padBottom = state.insetBottom * dpr;
   const viewPxW = width;
   const viewPxH = Math.max(1, height - padTop - padBottom);
-  const cols = state.map[0].length;
-  const rows = state.map.length;
+  const map = state.map;
+  const cols = map[0].length;
+  const rows = map.length;
   // Grow the room until it touches the screen, and keep the whole map visible.
   const zoom = Math.min(viewPxW / (cols * 16 * dpr), viewPxH / (rows * 16 * dpr));
   const unit = zoom * dpr;
@@ -81,45 +139,64 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   ctx.clip();
   ctx.translate(0, padTop);
 
-  const x0 = Math.max(0, Math.floor(camX));
-  const y0 = Math.max(0, Math.floor(camY));
-  const x1 = Math.min(cols - 1, Math.ceil(camX + viewW));
-  const y1 = Math.min(rows - 1, Math.ceil(camY + viewH));
+  const x0 = Math.max(0, Math.floor(camX) - 1);
+  const y0 = Math.max(0, Math.floor(camY) - 1);
+  const x1 = Math.min(cols - 1, Math.ceil(camX + viewW) + 1);
+  const y1 = Math.min(rows - 1, Math.ceil(camY + viewH) + 3);
+  const frame = state.reduced ? 0 : Math.floor(state.time / 450) % 4;
+  const ctxInfo: Room = { map, cols, rows, unit, tile, camX, camY, frame, time: state.time, reduced: state.reduced, open: state.openCells };
+  const sx = (x: number) => Math.round((x - camX) * tile);
+  const sy = (y: number) => Math.round((y - camY) * tile);
+
+  // 1. Ground.
   for (let y = y0; y <= y1; y++) {
-    for (let x = x0; x <= x1; x++) {
-      const sx = Math.round((x - camX) * tile);
-      const sy = Math.round((y - camY) * tile);
-      const open = state.openCells.has(`${x},${y}`);
-      const wooden = near(state.map, x, y, ['grass', 'path', 'tree', 'water', 'plank', 'shelf', 'desk']);
-      drawTile(ctx, state.map[y][x], sx, sy, tile, unit, x, y, state.time, state.reduced, open, wooden);
-    }
+    for (let x = x0; x <= x1; x++) drawGround(ctx, ctxInfo, x, y, sx(x), sy(y));
+  }
+  // 2. Flat decoration on the ground and on wall faces.
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) drawDecal(ctx, ctxInfo, x, y, sx(x), sy(y));
   }
 
+  // 3. Standing objects and people, sorted by their feet.
   const sprites: { y: number; draw: () => void }[] = [];
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const draw = standing(ctx, ctxInfo, x, y, sx(x), sy(y));
+      if (draw) sprites.push({ y: y + 0.9, draw });
+    }
+  }
   for (const spot of state.spots) {
     const character = spot.characterId ? CHARACTER_BY_ID[spot.characterId] : undefined;
     if (character) {
-      sprites.push({
-        y: spot.y,
-        draw: () => {
-          drawActor(ctx, spot.x, spot.y, camX, camY, tile, 'down', people[character.id] ?? people.player);
-          drawTag(ctx, character.tag, spot.x, spot.y, camX, camY, tile);
-        },
-      });
-    } else if (spot.mark) {
-      sprites.push({
-        y: spot.y,
-        draw: () => drawTag(ctx, spot.mark!, spot.x, spot.y, camX, camY, tile),
-      });
+      sprites.push({ y: spot.y, draw: () => drawActor(ctx, spot.x, spot.y, camX, camY, tile, 'down', people[character.id] ?? people.player) });
     }
   }
-  sprites.push({
-    y: state.y,
-    draw: () => drawActor(ctx, state.x, state.y, camX, camY, tile, state.facing, people.player),
-  });
+  sprites.push({ y: state.y, draw: () => drawActor(ctx, state.x, state.y, camX, camY, tile, state.facing, people.player) });
   sprites.sort((a, b) => a.y - b.y);
   for (const sprite of sprites) sprite.draw();
+
+  // 4. Light, then labels on top so nothing hides them.
+  drawLight(ctx, ctxInfo, x0, y0, x1, y1, sx, sy);
+  for (const spot of state.spots) {
+    const character = spot.characterId ? CHARACTER_BY_ID[spot.characterId] : undefined;
+    const label = character ? character.tag : spot.mark;
+    if (label) drawTag(ctx, label, spot.x, spot.y, camX, camY, tile);
+  }
   ctx.restore();
+}
+
+interface Room {
+  map: Tile[][];
+  cols: number;
+  rows: number;
+  unit: number;
+  tile: number;
+  camX: number;
+  camY: number;
+  frame: number;
+  time: number;
+  reduced: boolean;
+  open: Set<string>;
 }
 
 function ready(image: HTMLImageElement) {
@@ -128,153 +205,509 @@ function ready(image: HTMLImageElement) {
 
 function cell(ctx: CanvasRenderingContext2D, image: HTMLImageElement, col: number, row: number, x: number, y: number, unit: number) {
   if (!ready(image)) return false;
-  ctx.drawImage(image, col * 16, row * 16, 16, 16, x, y, 16 * unit, 16 * unit);
+  // Round up so neighbouring tiles overlap by a fraction of a pixel instead of leaving seams.
+  const size = Math.ceil(16 * unit) + 1;
+  ctx.drawImage(image, col * 16, row * 16, 16, 16, x, y, size, size);
   return true;
 }
 
-function drawTile(
-  ctx: CanvasRenderingContext2D,
-  tile: Tile,
-  x: number,
-  y: number,
-  size: number,
-  unit: number,
-  col: number,
-  row: number,
-  time: number,
-  reduced: boolean,
-  open: boolean,
-  wooden: boolean,
-) {
-  const grass = 1 + ((col + row) % 3);
-  const dirt = 11 + ((col + row) % 3);
-  const wood = (col + row) % 2 === 0 ? 7 : 8;
-  if (tile === 'grass' || tile === 'tree') {
-    if (!cell(ctx, floors, grass, 10, x, y, unit)) fill(ctx, (col + row) % 2 === 0 ? '#7cb342' : '#689f38', x, y, size);
-  }
-  if (tile === 'path') {
-    if (!cell(ctx, floors, dirt, 10, x, y, unit)) fill(ctx, '#a97845', x, y, size);
-  }
-  if (tile === 'water') {
-    if (!cell(ctx, water, 2, 7, x, y, unit)) fill(ctx, '#1565c0', x, y, size);
-  }
-  if (tile === 'stone' || tile === 'engraving' || tile === 'door' || tile === 'chest' || (tile === 'gate' && open)) {
-    if (!cell(ctx, dungeon, (col + row) % 2, 0, x, y, unit)) fill(ctx, '#5d4e45', x, y, size);
-  }
-  if (tile === 'plank' || tile === 'shelf' || tile === 'desk') {
-    if (!cell(ctx, floors, wood, 22, x, y, unit)) fill(ctx, '#c4a574', x, y, size);
-  }
-  if (tile === 'wall' || tile === 'torch' || (tile === 'gate' && !open)) {
-    if (wooden) {
-      if (!ready(logs)) fill(ctx, '#8d5a32', x, y, size);
-      else ctx.drawImage(logs, x, y, size, size);
-    } else if (!cell(ctx, dungeon, 0, 14, x, y, unit)) fill(ctx, '#3e342f', x, y, size);
-  }
-  if (tile === 'tree' && ready(vegetation)) {
-    ctx.drawImage(vegetation, 0, 0, 32, 32, x - 8 * unit, y - 16 * unit, 32 * unit, 32 * unit);
-  }
-  if (tile === 'torch') {
-    ctx.fillStyle = '#5d4037';
-    ctx.fillRect(x + 7 * unit, y + 8 * unit, 2 * unit, 5 * unit);
-    const flicker = reduced ? 0 : Math.floor(time / 180) % 2;
-    ctx.fillStyle = flicker ? '#ffb300' : '#ff6f00';
-    ctx.fillRect(x + 6 * unit, y + 3 * unit, 4 * unit, 4 * unit);
-  }
-  if (tile === 'door') {
-    ctx.fillStyle = '#6d4c41';
-    ctx.fillRect(x + 3 * unit, y + unit, 10 * unit, 14 * unit);
-    ctx.fillStyle = '#f6d46b';
-    ctx.fillRect(x + 10 * unit, y + 8 * unit, 2 * unit, 2 * unit);
-  }
-  if (tile === 'gate' && !open) {
-    ctx.fillStyle = '#212121';
-    ctx.fillRect(x + 3 * unit, y + unit, 2 * unit, size - 2 * unit);
-    ctx.fillRect(x + 7 * unit, y + unit, 2 * unit, size - 2 * unit);
-    ctx.fillRect(x + 11 * unit, y + unit, 2 * unit, size - 2 * unit);
-  }
-  if (tile === 'gate' && open) {
-    ctx.fillStyle = '#81c784';
-    ctx.fillRect(x + 6 * unit, y + 6 * unit, 4 * unit, 4 * unit);
-  }
-  if (tile === 'shelf') {
-    const spines = ['#c62828', '#f6d46b', '#5c6bc0', '#72b043', '#ef6c00', '#00897b'];
-    spines.forEach((color, index) => {
-      ctx.fillStyle = color;
-      ctx.fillRect(x + unit + index * 2 * unit, y + 3 * unit, 2 * unit, 10 * unit);
-    });
-  }
-  if (tile === 'engraving') {
-    ctx.fillStyle = '#3e2723';
-    ctx.fillRect(x + 3 * unit, y + 6 * unit, 10 * unit, 2 * unit);
-  }
-  if (tile === 'desk') {
-    ctx.fillStyle = '#6d4c41';
-    ctx.fillRect(x + unit, y + 6 * unit, size - 2 * unit, 6 * unit);
-  }
-  if (tile === 'chest') {
-    ctx.fillStyle = '#f6d46b';
-    ctx.fillRect(x + 3 * unit, y + 5 * unit, 10 * unit, 8 * unit);
-    ctx.fillStyle = '#212121';
-    ctx.fillRect(x + 7 * unit, y + 8 * unit, 2 * unit, 2 * unit);
-  }
-  if (tile === 'wheel') {
-    if (!cell(ctx, dungeon, (col + row) % 2, 0, x, y, unit)) fill(ctx, '#5d4e45', x, y, size);
-    ctx.fillStyle = '#f6d46b';
-    ctx.fillRect(x + 7 * unit, y + 7 * unit, 2 * unit, 2 * unit);
-    ctx.fillRect(x + 3 * unit, y + 7 * unit, 3 * unit, 2 * unit);
-    ctx.fillRect(x + 10 * unit, y + 7 * unit, 3 * unit, 2 * unit);
-    ctx.fillRect(x + 7 * unit, y + 3 * unit, 2 * unit, 3 * unit);
-    ctx.fillRect(x + 7 * unit, y + 10 * unit, 2 * unit, 3 * unit);
-    ctx.fillStyle = '#efe6d4';
-    ctx.fillRect(x + 4 * unit, y + 4 * unit, 2 * unit, 2 * unit);
-    ctx.fillRect(x + 10 * unit, y + 4 * unit, 2 * unit, 2 * unit);
-    ctx.fillRect(x + 4 * unit, y + 10 * unit, 2 * unit, 2 * unit);
-    ctx.fillRect(x + 10 * unit, y + 10 * unit, 2 * unit, 2 * unit);
-  }
-  if (tile === 'block') {
-    fill(ctx, '#1b242c', x, y, size);
-    ctx.fillStyle = '#4db6ac';
-    for (let j = 0; j < 2; j++) {
-      for (let i = 0; i < 2; i++) ctx.fillRect(x + (2 + i * 7) * unit, y + (2 + j * 7) * unit, 5 * unit, 5 * unit);
-    }
-  }
-  if (tile === 'pedestal') {
-    if (!cell(ctx, floors, wood, 22, x, y, unit)) fill(ctx, '#c4a574', x, y, size);
-    ctx.fillStyle = '#6d4c41';
-    ctx.fillRect(x + 4 * unit, y + 9 * unit, 8 * unit, 4 * unit);
-    ctx.fillStyle = '#f6d46b';
-    ctx.fillRect(x + 6 * unit, y + 3 * unit, 4 * unit, 4 * unit);
-    ctx.fillRect(x + 7 * unit, y + 6 * unit, 2 * unit, 4 * unit);
-    ctx.fillRect(x + 4 * unit, y + 8 * unit, 3 * unit, 2 * unit);
-  }
-  if (tile === 'wire') {
-    if (!cell(ctx, floors, wood, 22, x, y, unit)) fill(ctx, '#c4a574', x, y, size);
-    ctx.fillStyle = '#00897b';
-    ctx.fillRect(x, y + 7 * unit, size, 2 * unit);
-    ctx.fillRect(x + 7 * unit, y, 2 * unit, size);
-    ctx.fillStyle = '#f6d46b';
-    ctx.fillRect(x + 6 * unit, y + 6 * unit, 4 * unit, 4 * unit);
-  }
-  if (tile === 'mix') {
-    fill(ctx, '#5e35b1', x, y, size);
-    ctx.fillStyle = '#b39ddb';
-    ctx.fillRect(x + 4 * unit, y + 4 * unit, 8 * unit, 8 * unit);
-  }
+/** Draw a sprite rectangle with its bottom centre at (cx, bottom). */
+function stamp(ctx: CanvasRenderingContext2D, image: HTMLImageElement, rect: readonly number[], cx: number, bottom: number, unit: number, scale = 1) {
+  if (!ready(image)) return;
+  const [rx, ry, rw, rh] = rect;
+  const w = rw * unit * scale;
+  const h = rh * unit * scale;
+  ctx.drawImage(image, rx, ry, rw, rh, Math.round(cx - w / 2), Math.round(bottom - h), Math.round(w), Math.round(h));
+}
+
+function variant(rect: readonly number[], k: number): number[] {
+  return [rect[0] + 48 * k, rect[1], rect[2], rect[3]];
 }
 
 function fill(ctx: CanvasRenderingContext2D, color: string, x: number, y: number, size: number) {
   ctx.fillStyle = color;
-  ctx.fillRect(x, y, size, size);
+  ctx.fillRect(x, y, Math.ceil(size) + 1, Math.ceil(size) + 1);
 }
 
-function near(map: Tile[][], x: number, y: number, kinds: Tile[]) {
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      const tile = map[y + dy]?.[x + dx];
-      if (tile && kinds.includes(tile)) return true;
+function at(room: Room, x: number, y: number): Tile | undefined {
+  return room.map[y]?.[x];
+}
+
+/** Ground under an object: the first ground found around it. */
+function baseGround(room: Room, x: number, y: number): Ground {
+  const own = groundOf(at(room, x, y));
+  if (own && own !== 'wall') return own;
+  const ring: [number, number][] = [[0, 1], [0, -1], [-1, 0], [1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1], [0, 2], [2, 0], [-2, 0], [0, -2]];
+  for (const [dx, dy] of ring) {
+    const g = groundOf(at(room, x + dx, y + dy));
+    if (g && g !== 'wall' && g !== 'water' && g !== 'bridge') return g;
+  }
+  // An object in the middle of a bridge (the bridge gate) stands on the planks.
+  if (groundOf(at(room, x - 1, y)) === 'bridge' || groundOf(at(room, x, y - 1)) === 'bridge') return 'bridge';
+  return stoneRoom(room.map) ? 'dungeon' : 'grass';
+}
+
+const themes = new WeakMap<Tile[][], boolean>();
+
+/** A room with more flagstone or paving than grass, sand, or dirt gets stone walls; the rest get timber. */
+function stoneRoom(map: Tile[][]): boolean {
+  const known = themes.get(map);
+  if (known !== undefined) return known;
+  let stone = 0;
+  let other = 0;
+  for (const row of map) {
+    for (const t of row) {
+      const g = groundOf(t);
+      if (g === 'dungeon' || g === 'paving') stone++;
+      else if (g === 'grass' || g === 'sand' || g === 'dirt' || g === 'cobble') other++;
     }
   }
-  return false;
+  const result = stone > other;
+  themes.set(map, result);
+  return result;
+}
+
+/** Stone rooms get dungeon walls. Outdoor buildings and timber rooms keep log walls. */
+function dungeonWall(room: Room) {
+  return stoneRoom(room.map);
+}
+
+/** Ground the water shore should curve towards. Bridges, walls, and objects on a bridge are not land. */
+function isLand(room: Room, x: number, y: number) {
+  const tile = at(room, x, y);
+  if (!tile) return false;
+  const g = groundOf(tile) ?? baseGround(room, x, y);
+  return g !== 'water' && g !== 'wall' && g !== 'bridge';
+}
+
+function drawGroundKind(ctx: CanvasRenderingContext2D, room: Room, kind: Ground, x: number, y: number, px: number, py: number) {
+  const { unit, tile } = room;
+  const h = hash(x, y);
+  if (kind === 'grass') {
+    if (!cell(ctx, floors, 1 + (h % 3), (h >>> 3) % 5 === 0 ? 11 : 10, px, py, unit)) fill(ctx, '#7cb342', px, py, tile);
+  } else if (kind === 'dirt') {
+    if (!cell(ctx, floors, 11 + (h % 3), (h >>> 3) % 5 === 0 ? 11 : 10, px, py, unit)) fill(ctx, '#a97845', px, py, tile);
+  } else if (kind === 'cobble') {
+    if (!cell(ctx, floors, 6 + (h % 3), (h >>> 3) % 5 === 0 ? 11 : 10, px, py, unit)) fill(ctx, '#9e9278', px, py, tile);
+  } else if (kind === 'paving') {
+    if (!cell(ctx, floors, 16 + (h % 3), 1 + ((h >>> 3) % 3), px, py, unit)) fill(ctx, '#a1958a', px, py, tile);
+  } else if (kind === 'sand') {
+    if (!cell(ctx, floors, (x + y) % 2 === 0 ? 7 : 8, 22, px, py, unit)) fill(ctx, '#c4a574', px, py, tile);
+  } else if (kind === 'dungeon') {
+    const [c, r] = DUNGEON_FLOOR[h % DUNGEON_FLOOR.length];
+    if (!cell(ctx, dungeon, c, r, px, py, unit)) fill(ctx, '#3d4f4c', px, py, tile);
+  } else if (kind === 'water' || kind === 'bridge') {
+    drawWater(ctx, room, x, y, px, py);
+    if (kind === 'bridge') drawBridge(ctx, room, x, y, px, py);
+  }
+}
+
+function drawWater(ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, px: number, py: number) {
+  const { unit, tile, frame } = room;
+  const off = 6 * frame;
+  // Shore pieces come from the island in water.png: land on one side, water on the other.
+  let col = 5 + off;
+  let row = (x + y) % 5;
+  if (isLand(room, x, y - 1)) { col = 2 + off; row = 4; }
+  else if (isLand(room, x, y + 1)) { col = 2 + off; row = 0; }
+  else if (isLand(room, x - 1, y)) { col = 4 + off; row = 2; }
+  else if (isLand(room, x + 1, y)) { col = 0 + off; row = 2; }
+  if (!cell(ctx, water, col, row, px, py, unit)) fill(ctx, '#4f8ccf', px, py, tile);
+}
+
+function drawBridge(ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, px: number, py: number) {
+  const { unit } = room;
+  const across = at(room, x - 1, y) === 'bridge' || at(room, x + 1, y) === 'bridge' || groundOf(at(room, x - 1, y)) !== 'water';
+  ctx.save();
+  if (!across) {
+    ctx.translate(px + 8 * unit, py + 8 * unit);
+    ctx.rotate(Math.PI / 2);
+    ctx.translate(-px - 8 * unit, -py - 8 * unit);
+  }
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = (i + x) % 2 === 0 ? '#9a6b40' : '#86592f';
+    ctx.fillRect(px + i * 4 * unit, py + 2 * unit, 3.5 * unit, 12 * unit);
+    ctx.fillStyle = '#5d3b1e';
+    ctx.fillRect(px + i * 4 * unit + unit, py + 4 * unit, unit, unit);
+  }
+  ctx.fillStyle = '#4e2f17';
+  ctx.fillRect(px, py + unit, 16 * unit, 1.5 * unit);
+  ctx.fillRect(px, py + 13.5 * unit, 16 * unit, 1.5 * unit);
+  ctx.restore();
+}
+
+/** A torch with no wall behind it stands on the floor as a brazier. */
+function brazier(room: Room, x: number, y: number) {
+  const behind = at(room, x, y - 1);
+  return at(room, x, y) === 'torch' && behind !== undefined && !WALLISH.has(behind);
+}
+
+function drawGround(ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, px: number, py: number) {
+  const t = at(room, x, y)!;
+  const g = groundOf(t);
+  if (brazier(room, x, y)) {
+    drawGroundKind(ctx, room, baseGround(room, x, y), x, y, px, py);
+    return;
+  }
+  if (g === 'wall') {
+    drawWall(ctx, room, x, y, px, py);
+    return;
+  }
+  drawGroundKind(ctx, room, g ?? baseGround(room, x, y), x, y, px, py);
+}
+
+function drawWall(ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, px: number, py: number) {
+  const { unit, tile } = room;
+  if (!dungeonWall(room)) {
+    if (!ready(logs)) fill(ctx, '#8d5a32', px, py, tile);
+    else ctx.drawImage(logs, px, py, Math.ceil(tile) + 1, Math.ceil(tile) + 1);
+    return;
+  }
+  const below = at(room, x, y + 1);
+  const side = WALLISH.has(at(room, x - 1, y) as Tile) || WALLISH.has(at(room, x + 1, y) as Tile);
+  const face = below !== undefined && !WALLISH.has(below) && side;
+  if (face) {
+    if (!cell(ctx, dungeon, x % 3, 1, px, py, unit)) fill(ctx, '#4a4a55', px, py, tile);
+    return;
+  }
+  const belowFace = below !== undefined && WALLISH.has(below) && !WALLISH.has(at(room, x, y + 2) as Tile);
+  if (belowFace) {
+    if (!cell(ctx, dungeon, 1, 14, px, py, unit)) fill(ctx, '#1c1a1f', px, py, tile);
+    return;
+  }
+  fill(ctx, '#1d1b20', px, py, tile);
+  ctx.fillStyle = '#2a2830';
+  ctx.fillRect(px, py, tile, unit);
+}
+
+function drawDecal(ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, px: number, py: number) {
+  const t = at(room, x, y)!;
+  const { unit, tile } = room;
+  const h = hash(x, y, 7);
+  // Dirt and cobble paths bleed into the grass beside them.
+  if (groundOf(t) === 'grass' || (groundOf(t) === null && !WALLISH.has(t) && baseGround(room, x, y) === 'grass')) {
+    const edges: [number, number, number, number][] = [[0, -1, 0, -1], [0, 1, 0, 1], [-1, 0, -1, 0], [1, 0, 1, 0]];
+    for (const [dx, dy, ox, oy] of edges) {
+      const n = groundOf(at(room, x + dx, y + dy));
+      const centre = n === 'dirt' ? 12 : n === 'cobble' ? 7 : 0;
+      if (centre) cell(ctx, floors, centre + ox, 2 + oy, px, py, unit);
+    }
+  }
+  if (t === 'flower') {
+    const count = 2 + (h % 2);
+    const colour = FLOWER_ROWS[(h >>> 4) % FLOWER_ROWS.length];
+    for (let i = 0; i < count; i++) {
+      const fx = FLOWER_COLS[(h >>> (6 + i * 3)) % FLOWER_COLS.length];
+      const ox = 3 + ((h >>> (9 + i * 4)) % 10);
+      const oy = 6 + ((h >>> (12 + i * 5)) % 9);
+      stamp(ctx, vegetation, [fx, colour, 8, 7], px + ox * unit, py + oy * unit, unit);
+    }
+  }
+  if (t === 'plants') {
+    const pick = [VEG.fern, VEG.cattail, VEG.lupine, VEG.sprout, VEG.leaf, VEG.lupineSmall, VEG.sproutSmall][h % 7];
+    stamp(ctx, vegetation, pick, px + 8 * unit, py + 15 * unit, unit, pick[2] > 20 ? 0.7 : 1);
+  }
+  if (t === 'mushroom') {
+    stamp(ctx, vegetation, VEG.mushroom, px + 6 * unit, py + 13 * unit, unit);
+    stamp(ctx, vegetation, VEG.mushroomSmall, px + 12 * unit, py + 15 * unit, unit);
+  }
+  if (t === 'carpet') {
+    const vertical = at(room, x, y - 1) === 'carpet' || at(room, x, y + 1) === 'carpet';
+    // The runner sits half a tile off the grid in dungeon.png, at x 88 to 103.
+    const size = Math.ceil(tile) + 1;
+    if (ready(dungeon)) {
+      if (vertical) ctx.drawImage(dungeon, 88, 176, 16, 16, px, py, size, size);
+      else {
+        ctx.save();
+        ctx.translate(px + tile / 2, py + tile / 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.drawImage(dungeon, 88, 176, 16, 16, -tile / 2, -tile / 2, size, size);
+        ctx.restore();
+      }
+    }
+  }
+  if (t === 'grate') cell(ctx, dungeon, 7, 10, px, py, unit);
+  if (t === 'engraving') {
+    ctx.fillStyle = 'rgba(15, 30, 30, 0.55)';
+    ctx.fillRect(px + 2 * unit, py + 3 * unit, 12 * unit, 10 * unit);
+    ctx.fillStyle = '#9fd3c7';
+    const glyphs = 3;
+    for (let i = 0; i < glyphs; i++) {
+      const gx = px + (3 + i * 4) * unit;
+      const shape = (h >>> (i * 3)) % 4;
+      ctx.fillRect(gx, py + 5 * unit, 2 * unit, unit);
+      if (shape !== 0) ctx.fillRect(gx + (shape === 1 ? 0 : unit), py + 6 * unit, unit, 3 * unit);
+      if (shape === 2) ctx.fillRect(gx, py + 9 * unit, 2 * unit, unit);
+      if (shape === 3) ctx.fillRect(gx + unit, py + 8 * unit, 2 * unit, unit);
+    }
+  }
+  if (t === 'vent') {
+    cell(ctx, dungeon, 4, 18, px, py, unit);
+  }
+  if (t === 'banner') {
+    cell(ctx, dungeon, 6, 12, px, py, unit);
+  }
+  if (t === 'torch' && brazier(room, x, y)) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(px + 8 * unit, py + 14 * unit, 5 * unit, 1.5 * unit, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#37474f';
+    ctx.fillRect(px + 4 * unit, py + 12 * unit, unit, 2.5 * unit);
+    ctx.fillRect(px + 11 * unit, py + 12 * unit, unit, 2.5 * unit);
+    ctx.fillRect(px + 7 * unit, py + 9 * unit, 2 * unit, 4 * unit);
+    ctx.fillStyle = '#546e7a';
+    ctx.fillRect(px + 3 * unit, py + 7 * unit, 10 * unit, 3 * unit);
+    ctx.fillStyle = '#263238';
+    ctx.fillRect(px + 4 * unit, py + 9 * unit, 8 * unit, unit);
+    const flicker = room.reduced ? 0 : Math.floor(room.time / 150 + x) % 3;
+    ctx.fillStyle = ['#ff6f00', '#ffa000', '#ffca28'][flicker];
+    ctx.fillRect(px + 4 * unit, py + 3 * unit, 8 * unit, 4 * unit);
+    ctx.fillRect(px + (6 + (flicker === 1 ? 1 : 0)) * unit, py + unit, 3 * unit, 2 * unit);
+    ctx.fillStyle = '#fff3c4';
+    ctx.fillRect(px + 6 * unit, py + 4 * unit, 4 * unit, 2 * unit);
+  } else if (t === 'torch') {
+    ctx.fillStyle = '#5d4037';
+    ctx.fillRect(px + 7 * unit, py + 8 * unit, 2 * unit, 5 * unit);
+    ctx.fillStyle = '#3e2723';
+    ctx.fillRect(px + 6 * unit, py + 7 * unit, 4 * unit, 2 * unit);
+    const flicker = room.reduced ? 0 : Math.floor(room.time / 160 + x) % 3;
+    ctx.fillStyle = ['#ff6f00', '#ffa000', '#ffca28'][flicker];
+    ctx.fillRect(px + 6 * unit, py + 3 * unit, 4 * unit, 4 * unit);
+    ctx.fillStyle = '#fff3c4';
+    ctx.fillRect(px + 7 * unit, py + 4 * unit, 2 * unit, 2 * unit);
+  }
+  // Glow pooled on the floor in front of a vent, from the 3 × 3 glow block in dungeon.png.
+  for (let dy = 1; dy <= 3; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (at(room, x - dx, y - dy) === 'vent' && groundOf(t) === 'dungeon' && t !== 'carpet') {
+        ctx.globalAlpha = 0.6;
+        cell(ctx, dungeon, 4 + dx, 18 + dy, px, py, unit);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+  if (t === 'shelf') drawShelf(ctx, room, x, y, px, py);
+  if (t === 'desk') {
+    ctx.fillStyle = '#4e342e';
+    ctx.fillRect(px + unit, py + 11 * unit, 2 * unit, 4 * unit);
+    ctx.fillRect(px + 13 * unit, py + 11 * unit, 2 * unit, 4 * unit);
+    ctx.fillStyle = '#795548';
+    ctx.fillRect(px, py + 5 * unit, tile, 6 * unit);
+    ctx.fillStyle = '#a1887f';
+    ctx.fillRect(px, py + 5 * unit, tile, unit);
+    ctx.fillStyle = '#efe6d4';
+    ctx.fillRect(px + 3 * unit, py + 3 * unit, 5 * unit, 3 * unit);
+    ctx.fillStyle = '#3949ab';
+    ctx.fillRect(px + 10 * unit, py + 2 * unit, 2 * unit, 4 * unit);
+  }
+  if (t === 'wheel') {
+    ctx.fillStyle = '#6d4c41';
+    ctx.beginPath();
+    ctx.arc(px + 8 * unit, py + 8 * unit, 6.5 * unit, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f6d46b';
+    ctx.beginPath();
+    ctx.arc(px + 8 * unit, py + 8 * unit, 5 * unit, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#6d4c41';
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + (room.reduced ? 0 : room.time / 4000);
+      ctx.fillRect(px + 8 * unit + Math.cos(a) * 4 * unit - unit / 2, py + 8 * unit + Math.sin(a) * 4 * unit - unit / 2, unit, unit);
+    }
+    ctx.fillRect(px + 7 * unit, py + 7 * unit, 2 * unit, 2 * unit);
+  }
+  if (t === 'block') {
+    fill(ctx, '#1b242c', px, py, tile);
+    ctx.fillStyle = '#26323c';
+    ctx.fillRect(px, py, tile, unit);
+    for (let j = 0; j < 2; j++) {
+      for (let i = 0; i < 2; i++) {
+        const lit = ((h >>> (i + j * 2)) & 1) === 1;
+        ctx.fillStyle = lit ? '#4dd0e1' : '#00695c';
+        ctx.fillRect(px + (2 + i * 7) * unit, py + (2 + j * 7) * unit, 5 * unit, 5 * unit);
+      }
+    }
+  }
+  if (t === 'pedestal') {
+    ctx.fillStyle = '#5d4037';
+    ctx.fillRect(px + 4 * unit, py + 9 * unit, 8 * unit, 5 * unit);
+    ctx.fillStyle = '#8d6e63';
+    ctx.fillRect(px + 3 * unit, py + 8 * unit, 10 * unit, 2 * unit);
+    ctx.fillStyle = '#f6d46b';
+    ctx.fillRect(px + 6 * unit, py + 2 * unit, 4 * unit, 4 * unit);
+    ctx.fillRect(px + 7 * unit, py + 5 * unit, 2 * unit, 3 * unit);
+    ctx.fillRect(px + 9 * unit, py + 6 * unit, 2 * unit, unit);
+  }
+  if (t === 'wire') {
+    ctx.fillStyle = '#00897b';
+    const n = at(room, x, y - 1) === 'wire' || at(room, x, y + 1) === 'wire';
+    const e = at(room, x - 1, y) === 'wire' || at(room, x + 1, y) === 'wire';
+    if (e || !n) ctx.fillRect(px, py + 7 * unit, tile, 2 * unit);
+    if (n) ctx.fillRect(px + 7 * unit, py, 2 * unit, tile);
+    const pulse = room.reduced ? 0 : Math.floor(room.time / 250 + x) % 4;
+    ctx.fillStyle = pulse === 0 ? '#fff59d' : '#f6d46b';
+    ctx.fillRect(px + 6 * unit, py + 6 * unit, 4 * unit, 4 * unit);
+  }
+  if (t === 'mix') {
+    fill(ctx, '#4527a0', px, py, tile);
+    ctx.fillStyle = '#7e57c2';
+    ctx.fillRect(px + 2 * unit, py + 2 * unit, 12 * unit, 12 * unit);
+    ctx.fillStyle = '#d1c4e9';
+    ctx.fillRect(px + 4 * unit + (room.reduced ? 0 : (room.frame % 2) * unit), py + 4 * unit, 4 * unit, 4 * unit);
+    ctx.fillStyle = '#80deea';
+    ctx.fillRect(px + 8 * unit, py + 8 * unit, 4 * unit, 4 * unit);
+  }
+}
+
+function drawShelf(ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, px: number, py: number) {
+  const { unit, tile } = room;
+  const h = hash(x, y, 3);
+  ctx.fillStyle = '#4e342e';
+  ctx.fillRect(px, py, tile, tile);
+  ctx.fillStyle = '#6d4c41';
+  ctx.fillRect(px, py, tile, unit);
+  ctx.fillRect(px, py + 7 * unit, tile, unit);
+  ctx.fillRect(px, py + 15 * unit, tile, unit);
+  const spines = ['#c62828', '#f6d46b', '#5c6bc0', '#72b043', '#ef6c00', '#00897b', '#8e24aa', '#efe6d4'];
+  for (const shelf of [1, 8]) {
+    let bx = 1;
+    let i = 0;
+    while (bx < 15) {
+      const w = 1 + ((h >>> (i % 16)) & 1);
+      const hgt = 4 + ((h >>> ((i * 3) % 24)) % 3);
+      if (bx + w > 15) break;
+      ctx.fillStyle = spines[(h >>> ((i * 5 + shelf) % 26)) % spines.length];
+      ctx.fillRect(px + bx * unit, py + (shelf + 6 - hgt) * unit, w * unit, hgt * unit);
+      bx += w + ((h >>> (i + 2)) % 5 === 0 ? 1 : 0);
+      i++;
+    }
+  }
+}
+
+/** Objects that stand up from the floor. They are depth-sorted with the people. */
+function standing(ctx: CanvasRenderingContext2D, room: Room, x: number, y: number, px: number, py: number): (() => void) | null {
+  const t = at(room, x, y)!;
+  const { unit, tile } = room;
+  const h = hash(x, y, 11);
+  const cx = px + tile / 2;
+  const bottom = py + tile;
+  const shadow = (w: number) => () => {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    ctx.beginPath();
+    ctx.ellipse(cx, bottom - 2 * unit, w * unit, 2.5 * unit, 0, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  if (t === 'tree') {
+    // Mostly green, some yellow-green, the odd autumn tree.
+    const k = [0, 0, 0, 1, 0, 1, 2, 0, 0, 3][h % 10];
+    return () => { shadow(12)(); stamp(ctx, vegetation, variant(VEG.bigBush, k), cx, bottom + 2 * unit, unit); };
+  }
+  if (t === 'bush') {
+    const k = [0, 0, 1, 0, 2, 1][h % 6];
+    const shape = [VEG.roundBush, VEG.shadowBush, VEG.smallBush][(h >>> 5) % 3];
+    return () => stamp(ctx, vegetation, variant(shape, k), cx, bottom + unit, unit, 0.62);
+  }
+  if (t === 'rock') {
+    const shape = [VEG.rocks, VEG.rock, VEG.pebble][h % 3];
+    return () => { shadow(5)(); stamp(ctx, vegetation, shape, cx, bottom - unit, unit, shape === VEG.rocks ? 1 : 1.3); };
+  }
+  if (t === 'deadtree') return () => { shadow(9)(); stamp(ctx, vegetation, VEG.deadTree, cx, bottom, unit); };
+  if (t === 'crystal') {
+    return () => {
+      shadow(4)();
+      const bob = room.reduced ? 0 : Math.round(Math.sin(room.time / 500 + x) * 1.2) * unit;
+      stamp(ctx, vegetation, VEG.crystal, cx, bottom - 3 * unit + bob, unit);
+    };
+  }
+  if (t === 'pillar') {
+    return () => {
+      cell(ctx, dungeon, 3, 2, px, py, unit);
+      cell(ctx, dungeon, 3, 1, px, py - tile, unit);
+    };
+  }
+  if (t === 'bars') return () => cell(ctx, dungeon, 9, 5, px, py, unit);
+  if (t === 'door') {
+    // Arched door at half scale: 32 × 48 source pixels become one tile wide and one and a half tall.
+    return () => {
+      if (!ready(dungeon)) {
+        fill(ctx, '#6d4c41', px, py, tile);
+        return;
+      }
+      ctx.drawImage(dungeon, 0, 7 * 16, 32, 48, px, py - tile / 2, tile, tile * 1.5);
+    };
+  }
+  if (t === 'gate') {
+    const open = room.open.has(`${x},${y}`);
+    return () => {
+      if (!ready(dungeon)) {
+        fill(ctx, open ? '#81c784' : '#212121', px, py, tile);
+        return;
+      }
+      if (open) ctx.drawImage(dungeon, 0, 10 * 16, 32, 48, px, py - tile / 2, tile, tile * 1.5);
+      else ctx.drawImage(dungeon, 2 * 16, 7 * 16, 32, 48, px, py - tile / 2, tile, tile * 1.5);
+    };
+  }
+  if (t === 'chest') {
+    return () => {
+      shadow(6)();
+      ctx.fillStyle = '#6d4c41';
+      ctx.fillRect(px + 2 * unit, py + 6 * unit, 12 * unit, 8 * unit);
+      ctx.fillStyle = '#8d6e63';
+      ctx.fillRect(px + 2 * unit, py + 4 * unit, 12 * unit, 4 * unit);
+      ctx.fillStyle = '#f6d46b';
+      ctx.fillRect(px + 2 * unit, py + 8 * unit, 12 * unit, unit);
+      ctx.fillRect(px + 7 * unit, py + 7 * unit, 2 * unit, 3 * unit);
+      ctx.fillStyle = '#3e2723';
+      ctx.fillRect(px + 7.5 * unit, py + 9 * unit, unit, unit);
+    };
+  }
+  return null;
+}
+
+/** Warm torch light and cool crystal and vent light, added on top of the scene. */
+function drawLight(
+  ctx: CanvasRenderingContext2D,
+  room: Room,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  sx: (x: number) => number,
+  sy: (y: number) => number,
+) {
+  const { tile } = room;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const t = at(room, x, y);
+      let colour = '';
+      let radius = 0;
+      let cy = sy(y) + tile / 2;
+      if (t === 'torch') {
+        const flicker = room.reduced ? 0 : Math.sin(room.time / 140 + x * 3) * 0.12;
+        colour = `rgba(255, 170, 60, ${0.22 + flicker * 0.5})`;
+        radius = tile * (2.6 + flicker);
+        cy = sy(y) + tile * 0.3;
+      } else if (t === 'crystal') {
+        colour = 'rgba(90, 200, 255, 0.2)';
+        radius = tile * 1.6;
+      } else if (t === 'vent') {
+        colour = 'rgba(80, 140, 255, 0.16)';
+        radius = tile * 2.2;
+        cy = sy(y) + tile * 1.4;
+      }
+      if (!colour) continue;
+      const cx = sx(x) + tile / 2;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+      g.addColorStop(0, colour);
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+    }
+  }
+  ctx.restore();
 }
 
 function drawActor(
@@ -295,8 +728,14 @@ function drawActor(
     width = tile * 1.15;
     height = image.naturalHeight * (width / image.naturalWidth);
   }
-  const dx = Math.round(worldX * tile - camX * tile - width / 2);
-  const dy = Math.round((worldY + 0.35) * tile - camY * tile - height);
+  const footX = (worldX - camX) * tile;
+  const footY = (worldY + 0.35 - camY) * tile;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.beginPath();
+  ctx.ellipse(footX, footY - tile * 0.04, tile * 0.32, tile * 0.11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const dx = Math.round(footX - width / 2);
+  const dy = Math.round(footY - height);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   if (facing === 'left') {
