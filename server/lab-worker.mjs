@@ -25,7 +25,13 @@ export function createLocalLabRunner({ spawnImpl = spawn, timeoutMs = LAB_CMD_TI
       writeFileSync(file, code, 'utf8');
       try {
         const result = await new Promise(resolve => {
-          const child = spawnImpl('python3', [file], { stdio: ['ignore', 'pipe', 'pipe'] });
+          // No inherited environment: the server's API keys and database URL must not be readable
+          // from learner code (os.environ). PATH stays so python3 can be found.
+          const child = spawnImpl('python3', [file], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            cwd: dir,
+            env: { PATH: process.env.PATH || '/usr/bin:/bin', LANG: 'C.UTF-8', PYTHONIOENCODING: 'utf-8' },
+          });
           let stdout = '';
           let stderr = '';
           let settled = false;
