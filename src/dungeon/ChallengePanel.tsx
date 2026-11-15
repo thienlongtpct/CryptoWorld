@@ -178,67 +178,74 @@ export function ChallengePanel({
   return (
     <div className="cw-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="cw-card challenge">
-        <p className="cw-kicker">{challenge.difficulty}</p>
-        <h2 id={titleId}>{challenge.title}</h2>
-        <p>{challenge.objective}</p>
-        <p className="cw-evidence"><b>Evidence. </b>{challenge.evidence}</p>
-        <p>{challenge.flagFormat}</p>
-        {user && challenge.tools.length > 0 && <Tools challenge={challenge} />}
-        {!user && <p>Log in to use the tools, submit an answer, and save the gate. You can read the evidence before that.</p>}
-        <form onSubmit={submit}>
-          {board
-            ? <Board question={board.question} items={board.items} choices={board.choices} picks={picks} wrongRows={wrongRows} disabled={!user} onPick={pick} />
-            : (
-              <label className="cw-search">Answer
-                <input value={answer} onChange={event => { onAnswer(event.target.value); setWrong(false); }} autoComplete="off" spellCheck={false} autoFocus />
-              </label>
-            )}
-          <div className="cw-actions">
-            <button type="submit" className="btn" disabled={busy}>{busy ? 'Please wait…' : user ? 'Submit' : 'Log in to submit'}</button>
-            {board && user && Object.keys(picks).length > 0 && (
-              <button type="button" className="btn ghost" onClick={() => { onAnswer(''); setWrongRows({}); setWrong(false); setIncomplete(false); }}>Clear the board</button>
-            )}
-            {user && hints < challenge.hints.length && (
-              <button type="button" className="btn ghost" onClick={() => onHints(hints + 1)}>Hint {hints + 1}</button>
-            )}
-            {user && <button type="button" className="btn ghost" onClick={() => { void showWalkthrough(); }}>Show the walkthrough</button>}
+        <header className="cw-chal-head">
+          <div>
+            <p className="cw-kicker">{challenge.wing} · {challenge.difficulty}</p>
+            <h2 id={titleId}>{challenge.title}</h2>
           </div>
-        </form>
-        {challenge.hints.slice(0, hints).map((hint, index) => <p key={hint} className="cw-hintline">Hint {index + 1}. {hint}</p>)}
-        {walkthrough && <p className="cw-hintline">Walkthrough. This states the solution. {walkthrough}</p>}
-        {incomplete && <p className="cw-attack" role="alert">Choose an answer for every value first. {left === 1 ? 'One row is' : `${left} rows are`} still empty.</p>}
-        {wrong && board && <p className="cw-attack" role="alert">{Object.keys(wrongRows).length === 1 ? 'One row needs' : `${Object.keys(wrongRows).length} rows need`} another look. They are marked “Look again” on the board. The gate is unchanged, and you can try again.</p>}
-        {wrong && !board && <p className="cw-attack" role="alert">That answer does not match. The gate is unchanged, and you can try again.</p>}
-        {explanation && <p className="cw-answer">Why. {explanation}</p>}
-        {error && <p className="cw-attack" role="alert">{error}</p>}
-        {solved && <p className="cw-answer" role="status">The gate is open. This reward is already on your account.</p>}
-        <div className="cw-actions">
-          <button type="button" className="btn" onClick={() => onLesson(challenge.lesson)}>Learn this concept</button>
-          {solved && <button type="button" className="btn" onClick={onSolved}>{board ? 'Close and cross the bridge' : 'Go through'}</button>}
-          <button type="button" className="btn ghost" onClick={onClose}>Return to dungeon</button>
-        </div>
-        {user && guide && (
-          <form className="cw-ask" onSubmit={ask}>
-            <div className="cw-who">
-              <Portrait id={guide.id} />
-              <div>
-                <b>Ask {guide.name}</b>
-                {guide.type === 'portrayal' && <span className="cw-badge">{PORTRAYAL_BADGE}</span>}
-              </div>
+          <button type="button" className="cw-x" aria-label="Return to dungeon" onClick={onClose}>✕</button>
+        </header>
+        <div className="cw-chal-body">
+          <p className="cw-chal-objective">{challenge.objective}</p>
+          <p className="cw-evidence"><b>Evidence</b>{challenge.evidence}</p>
+          <p className="cw-chal-format">{challenge.flagFormat}</p>
+          {user && challenge.tools.length > 0 && <Tools challenge={challenge} />}
+          {!user && <p className="cw-chal-note">Log in to use the tools, submit an answer, and save the gate. You can read the evidence before that.</p>}
+          <form className="cw-chal-form" onSubmit={submit}>
+            {board
+              ? <Board question={board.question} items={board.items} choices={board.choices} picks={picks} wrongRows={wrongRows} disabled={!user} onPick={pick} />
+              : (
+                <label className="cw-search">Answer
+                  <input value={answer} onChange={event => { onAnswer(event.target.value); setWrong(false); }} autoComplete="off" spellCheck={false} autoFocus />
+                </label>
+              )}
+            <div className="cw-actions cw-chal-actions">
+              <button type="submit" className="btn" disabled={busy}>{busy ? 'Please wait…' : user ? 'Submit' : 'Log in to submit'}</button>
+              {board && user && Object.keys(picks).length > 0 && (
+                <button type="button" className="btn ghost" onClick={() => { onAnswer(''); setWrongRows({}); setWrong(false); setIncomplete(false); }}>Clear</button>
+              )}
+              {user && hints < challenge.hints.length && (
+                <button type="button" className="btn ghost" onClick={() => onHints(hints + 1)}>Hint {hints + 1}</button>
+              )}
+              {user && <button type="button" className="btn ghost" onClick={() => { void showWalkthrough(); }}>Walkthrough</button>}
             </div>
-            {guide.type === 'portrayal' && <p>{portrayalNotice(guide.name)}</p>}
-            <p>Gemini starts from a hint. It does not mark the gate complete. If Gemini is unavailable, the hints above and Submit still work.</p>
-            <label className="cw-search">What have you tried?
-              <textarea value={tried} maxLength={180} onChange={event => setTried(event.target.value)} />
-            </label>
-            <label className="cw-search">Question
-              <textarea value={tutorQ} maxLength={180} onChange={event => setTutorQ(event.target.value)} />
-            </label>
-            <button type="submit" className="btn" disabled={tutorBusy || !tutorQ.trim()}>{tutorBusy ? 'Please wait…' : 'Ask Gemini'}</button>
-            {tutorError && <p className="cw-attack" role="alert">{tutorError}</p>}
-            {tutor && <p className="cw-answer">{tutor}</p>}
           </form>
-        )}
+          {challenge.hints.slice(0, hints).map((hint, index) => <p key={hint} className="cw-hintline">Hint {index + 1}. {hint}</p>)}
+          {walkthrough && <p className="cw-hintline">Walkthrough. This states the solution. {walkthrough}</p>}
+          {incomplete && <p className="cw-attack" role="alert">Choose an answer for every value first. {left === 1 ? 'One row is' : `${left} rows are`} still empty.</p>}
+          {wrong && board && <p className="cw-attack" role="alert">{Object.keys(wrongRows).length === 1 ? 'One row needs' : `${Object.keys(wrongRows).length} rows need`} another look. They are marked “Look again” on the board. The gate is unchanged, and you can try again.</p>}
+          {wrong && !board && <p className="cw-attack" role="alert">That answer does not match. The gate is unchanged, and you can try again.</p>}
+          {explanation && <p className="cw-answer">Why. {explanation}</p>}
+          {error && <p className="cw-attack" role="alert">{error}</p>}
+          {solved && <p className="cw-answer" role="status">The gate is open. This reward is already on your account.</p>}
+          <div className="cw-actions cw-chal-foot">
+            <button type="button" className="btn" onClick={() => onLesson(challenge.lesson)}>Learn this concept</button>
+            {solved && <button type="button" className="btn" onClick={onSolved}>{board ? 'Close and continue' : 'Go through'}</button>}
+            <button type="button" className="btn ghost" onClick={onClose}>Return to dungeon</button>
+          </div>
+          {user && guide && (
+            <form className="cw-ask" onSubmit={ask}>
+              <div className="cw-who">
+                <Portrait id={guide.id} />
+                <div>
+                  <b>Ask {guide.name}</b>
+                  {guide.type === 'portrayal' && <span className="cw-badge">{PORTRAYAL_BADGE}</span>}
+                </div>
+              </div>
+              {guide.type === 'portrayal' && <p>{portrayalNotice(guide.name)}</p>}
+              <p className="cw-chal-note">Gemini starts from a hint. It does not mark the gate complete. If Gemini is unavailable, the hints above and Submit still work.</p>
+              <label className="cw-search">What have you tried?
+                <textarea value={tried} maxLength={180} onChange={event => setTried(event.target.value)} />
+              </label>
+              <label className="cw-search">Question
+                <textarea value={tutorQ} maxLength={180} onChange={event => setTutorQ(event.target.value)} />
+              </label>
+              <button type="submit" className="btn" disabled={tutorBusy || !tutorQ.trim()}>{tutorBusy ? 'Please wait…' : 'Ask Gemini'}</button>
+              {tutorError && <p className="cw-attack" role="alert">{tutorError}</p>}
+              {tutor && <p className="cw-answer">{tutor}</p>}
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -72,9 +72,8 @@ export function Landing({ user, ready, onStart, onLogin, onRegister, onBrowse }:
         <p className="lp-kicker">A cryptography adventure</p>
         <h1 id={titleId} className="lp-title">Crypto Dungeon</h1>
         <p className="lp-lede">
-          <b>Explore cryptography. Learn how it works. Solve challenges to unlock the dungeon.</b>{' '}
-          Every building is a library of animated lessons, from Caesar ciphers to private set intersection,
-          and every locked gate is a puzzle you crack with what you learned.
+          Walk a pixel world of cryptographers and locked gates. Open a building for animated lessons,
+          then crack the cipher on each gate with what you just learned.
         </p>
 
         <ol className="lp-steps">

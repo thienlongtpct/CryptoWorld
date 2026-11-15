@@ -22,6 +22,8 @@ export interface PaintState {
   walking?: boolean;
   /** The spot the HUD's next goal points at, marked with a ring and an arrow. */
   goal?: Spot | null;
+  /** Spot under the player's feet: a soft pulse so interactables read clearly. */
+  near?: Spot | null;
 }
 
 function load(src: string) {
@@ -147,8 +149,24 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
     for (let x = x0; x <= x1; x++) drawDecal(ctx, ctxInfo, x, y, sx(x), sy(y));
   }
 
-  // A ring on the ground under the next goal.
-  if (state.goal) {
+  // Soft pulse under whatever the player can use right now.
+  if (state.near) {
+    const pulse = state.reduced ? 0.55 : (Math.sin(state.time / 200) + 1) / 2;
+    const nx = (state.near.x - camX) * tile;
+    const ny = (Math.floor(state.near.y) + 0.82 - camY) * tile;
+    ctx.fillStyle = `rgba(246, 212, 107, ${0.12 + pulse * 0.18})`;
+    ctx.beginPath();
+    ctx.ellipse(nx, ny, tile * (0.55 + pulse * 0.1), tile * (0.2 + pulse * 0.04), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255, 248, 225, ${0.45 + pulse * 0.4})`;
+    ctx.lineWidth = Math.max(2, unit * 1.5);
+    ctx.beginPath();
+    ctx.ellipse(nx, ny, tile * (0.48 + pulse * 0.08), tile * (0.18 + pulse * 0.03), 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // A ring on the ground under the next goal (skipped when it is already the near spot).
+  if (state.goal && state.goal.id !== state.near?.id) {
     const pulse = state.reduced ? 0.5 : (Math.sin(state.time / 260) + 1) / 2;
     const gx = (state.goal.x - camX) * tile;
     const gy = (Math.floor(state.goal.y) + 0.82 - camY) * tile;

@@ -84,7 +84,6 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   const facing = useRef<Direction>('down');
   const keys = useRef(new Set<Direction>());
   const nearRef = useRef<Spot | null>(null);
-  const greetedRef = useRef('');
   const nearId = useRef('');
   const uiLock = useRef(false);
   const authOpenRef = useRef(false);
@@ -150,7 +149,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   useEffect(() => {
     if (wasLayered.current && !layered) {
       setStatus(challengeId ? `Back at ${CHALLENGE_BY_ID[challengeId]?.title ?? 'the gate'}.` : `Back in ${roomOf(roomRef.current).name}.`);
-      if (!challengeId) requestAnimationFrame(() => bodyRef.current?.querySelector<HTMLButtonElement>('.cw-bottom .btn')?.focus());
+      if (!challengeId) requestAnimationFrame(() => bodyRef.current?.querySelector<HTMLButtonElement>('.cw-prompt-btn, .cw-bottom .btn')?.focus());
     }
     if (!wasLayered.current && layered) remember();
     wasLayered.current = layered;
@@ -319,11 +318,6 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
         nearRef.current = spot;
         setNear(spot);
         setStatus(spot ? promptFor(spot, userRef.current, progressRef.current) : current.objective);
-        if (!spot || spot.id !== greetedRef.current) greetedRef.current = '';
-        if (spot?.kind === 'person' && !uiLock.current) {
-          greetedRef.current = spot.id;
-          setTalk(spot);
-        }
       }
       const canvas = canvasRef.current;
       if (canvas) {
@@ -334,9 +328,13 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
           canvas.width = nextW;
           canvas.height = nextH;
         }
-        const stage = canvas.parentElement;
+        const stage = canvas.parentElement as HTMLElement | null;
         const insetTop = stage?.querySelector('.cw-top')?.getBoundingClientRect().height ?? 0;
         const insetBottom = stage?.querySelector('.cw-bottom')?.getBoundingClientRect().height ?? 0;
+        if (stage) {
+          stage.style.setProperty('--cw-hud-top', `${insetTop}px`);
+          stage.style.setProperty('--cw-hud-bottom', `${insetBottom}px`);
+        }
         const ctx = canvas.getContext('2d');
         if (ctx) {
           paint(ctx, canvas.width, canvas.height, dpr, {
@@ -351,6 +349,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
             time: now,
             reduced,
             goal: goalSpotRef.current,
+            near: nearRef.current,
             walking: !uiLock.current && keys.current.size > 0,
           });
         }
@@ -448,6 +447,15 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   }
 
   const backLabel = challengeId ? `Back to ${CHALLENGE_BY_ID[challengeId]?.title ?? 'the gate'}` : `Back to ${room.name}`;
+  const bridgeOpen = merged[challengeItemId('wire')] === 'done';
+  const sealOpen = merged[challengeItemId('seal')] === 'done';
+  const overlapOpen = merged[challengeItemId('overlap')] === 'done';
+  const progressBits = [
+    { id: 'catacombs', label: 'Catacombs', done: solved, total: 3 },
+    { id: 'bridge', label: 'Bridge', done: bridgeOpen ? 1 : 0, total: 1 },
+    { id: 'forest', label: 'Forest', done: sealOpen ? 1 : 0, total: 1 },
+    { id: 'gardens', label: 'Gardens', done: overlapOpen ? 1 : 0, total: 1 },
+  ];
   return (
     <>
     {layered && (
@@ -466,38 +474,64 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
           <canvas ref={canvasRef} aria-hidden="true" />
           <header className="cw-top">
             <div className="cw-identity">
-              <Portrait id="player" />
+              <Portrait id="player" size={44} />
               <div className="cw-where">
-                <h1 className="cw-title">Crypto Dungeon</h1>
+                <p className="cw-kicker">Crypto Dungeon</p>
+                <h1 className="cw-title">{room.name}</h1>
                 <p className="cw-place">
-                  <b>{room.name}</b>
                   {room.wing !== room.name && room.wing !== 'Outside' && <span>{room.wing}</span>}
                   {user
-                    ? <span className="cw-pill">Gates {solved}/3 · Bridge {merged[challengeItemId('wire')] === 'done' ? 'open' : 'locked'}</span>
+                    ? <span className="cw-pill">Gates {solved}/3</span>
                     : <span className="cw-pill guest">Guest</span>}
                 </p>
-                <p className="cw-goal"><span>Next</span>{goal.text}</p>
               </div>
             </div>
+            <div className="cw-progress" aria-label="Quest progress">
+              {progressBits.map(bit => (
+                <span key={bit.id} className={`cw-quest${bit.done >= bit.total ? ' done' : ''}`} title={`${bit.label}: ${bit.done}/${bit.total}`}>
+                  <i aria-hidden="true" />
+                  <b>{bit.label}</b>
+                  <em>{bit.done}/{bit.total}</em>
+                </span>
+              ))}
+            </div>
             <div className="cw-actions cw-inline">
-              <button type="button" className="btn ghost" onClick={() => setWelcome(true)}>Guide</button>
               <button type="button" className="btn ghost" onClick={() => { setTalk(null); setJournal(false); setListOpen(true); }}>Map</button>
-              <button type="button" className="btn ghost" onClick={() => setSettings(true)}>Settings</button>
+              <button type="button" className="btn ghost" onClick={() => setWelcome(true)}>Guide</button>
+              <button type="button" className="btn ghost cw-icon-btn" aria-label="Settings" onClick={() => setSettings(true)}>⚙</button>
               {ready && !user && <button type="button" className="btn" onClick={() => openAuth('signin')}>Log in</button>}
               {ready && !user && <button type="button" className="btn ghost" onClick={() => openAuth('register')}>Sign up</button>}
               {ready && user && <button type="button" className="btn ghost" onClick={() => { void logout(); }}>Sign out</button>}
             </div>
           </header>
           {!modal && (
-            <footer className="cw-bottom">
-              <p>{status || room.objective}</p>
-              {near && <button type="button" className="btn" onClick={() => interact(near)}>{buttonFor(near, user, merged)}</button>}
-              <div className="cw-actions cw-inline">
-                <button type="button" className="btn ghost" onClick={() => { setConfirmReset(false); setJournal(true); }}>Journal</button>
-                <button type="button" className="btn ghost" onClick={() => setCatalog(open => !open)}>Catalog</button>
-                {user && <button type="button" className="btn" onClick={() => ask('library')}>Library</button>}
-              </div>
-            </footer>
+            <>
+              <p className="cw-goal-banner" role="status">
+                <span>Next</span>
+                <b>{goal.text}</b>
+              </p>
+              {near && (
+                <div className="cw-prompt">
+                  <button type="button" className="cw-prompt-btn" onClick={() => interact(near)}>
+                    <kbd>Space</kbd>
+                    <span>{buttonFor(near, user, merged)}</span>
+                  </button>
+                </div>
+              )}
+              <footer className="cw-bottom">
+                <p className="cw-status">{status || room.objective}</p>
+                {!near && (
+                  <p className="cw-keys" aria-hidden="true">
+                    <kbd>WASD</kbd> walk · <kbd>Space</kbd> use · <kbd>Map</kbd> jump
+                  </p>
+                )}
+                <div className="cw-actions cw-inline">
+                  <button type="button" className="btn ghost" onClick={() => { setConfirmReset(false); setJournal(true); }}>Journal</button>
+                  <button type="button" className="btn ghost" onClick={() => setCatalog(open => !open)}>Catalog</button>
+                  {user && <button type="button" className="btn" onClick={() => ask('library')}>Library</button>}
+                </div>
+              </footer>
+            </>
           )}
           <div className="cw-pad" aria-label="Movement">
             {(['up', 'left', 'down', 'right'] as Direction[]).map(dir => (
@@ -639,10 +673,15 @@ function openCellsOf(room: Room, progress: Record<string, string>) {
 }
 
 function promptFor(spot: Spot, user: string | null, progress: Record<string, string>): string {
-  if (spot.kind === 'gate' && spot.requires?.every(id => progress[challengeItemId(id)] === 'done')) return `${spot.name} is open.`;
+  if (spot.kind === 'person') return `${spot.name} is nearby. Press Space to talk.`;
+  if (spot.kind === 'gate' && spot.requires?.every(id => progress[challengeItemId(id)] === 'done')) return `${spot.name} is open. Walk through or press Space.`;
+  if (spot.kind === 'gate') return `${spot.name} blocks the way. Press Space to inspect it.`;
   if (spot.kind === 'door' && spot.to && !canEnter(spot.to, user, progress)) return `${spot.name} is locked.`;
-  if (spot.kind === 'future') return `${spot.name} is not open.`;
-  return `Near ${spot.name}.`;
+  if (spot.kind === 'door') return `${spot.name} is ahead. Press Space to enter.`;
+  if (spot.kind === 'shelf') return `${spot.name}. Press Space to browse.`;
+  if (spot.kind === 'chest') return 'The treasure chest. Press Space to open it.';
+  if (spot.kind === 'future') return `${spot.name} is not open yet.`;
+  return `Near ${spot.name}. Press Space to use.`;
 }
 
 function buttonFor(spot: Spot, user: string | null, progress: Record<string, string>): string {
