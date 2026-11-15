@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect } from 'react';
 import { useAccount } from './account';
-import { accessReason, isRestricted } from './access';
+import { accessReason, isRestricted, routeBase } from './access';
 import { useApp, type View } from './state';
 import { ENTRY_BY_ID } from './data/entries';
 import { Header } from './components/Header';
@@ -11,6 +11,7 @@ import { ContentPage } from './pages/ContentPage';
 import { Bibliography } from './pages/Bibliography';
 import { PathDetail, Paths } from './pages/Paths';
 import { Lesson } from './pages/Lesson';
+import { Research } from './pages/Research';
 import { PATH_BY_ID, LESSON_BY_ID } from './data/paths';
 import { TOPIC_PAGES } from './vis/topics';
 import { TOPIC_BY_ID } from './vis/registry';
@@ -21,6 +22,7 @@ import './world/world.css';
 
 const PAGE_TITLES: Record<string, string> = {
   library: 'Library',
+  research: 'Research Desk',
   terms: 'All terms', classical: 'Classical cryptography', modern: 'Modern cryptography',
   'lib-psi': 'PSI library', 'lib-psu': 'PSU library', bib: 'Bibliography',
   paths: 'Learning paths',
@@ -39,19 +41,21 @@ function pageForAnchor(id: string): string | null {
 export function App() {
   const { route, view, setView, cite } = useApp();
   const { ready, user, requestAccess } = useAccount();
-  const worldRoute = route === '' || route === 'top' || route === 'world';
-  const restricted = isRestricted(route, !!ENTRY_BY_ID[route]);
+  const base = routeBase(route);
+  const worldRoute = base === '' || base === 'top' || base === 'world';
+  const restricted = isRestricted(route, !!ENTRY_BY_ID[base]);
   const checking = !ready && restricted;
-  const showWorld = !checking && (worldRoute || !user);
-  const touring = route === 'tour-1' || route === 'tour-2' || route === 'tour-3' || route === 'tour-done';
-  const Topic = TOPIC_PAGES[route];
-  const lesson = !Topic && route.startsWith('lesson-') ? route.slice('lesson-'.length) : '';
-  const path = !Topic && !lesson && route.startsWith('path-') ? route.slice('path-'.length) : '';
+  // Guests stay on the world for gated lessons; public desks (research) still open as a World layer.
+  const showWorld = !checking && (worldRoute || (!user && restricted));
+  const touring = base === 'tour-1' || base === 'tour-2' || base === 'tour-3' || base === 'tour-done';
+  const Topic = TOPIC_PAGES[base];
+  const lesson = !Topic && base.startsWith('lesson-') ? base.slice('lesson-'.length) : '';
+  const path = !Topic && !lesson && base.startsWith('path-') ? base.slice('path-'.length) : '';
   // #def-<id> opens the plain dictionary page of a term that also has a visualization.
-  const termId = route.startsWith('def-') && ENTRY_BY_ID[route.slice(4)] ? route.slice(4) : route;
+  const termId = base.startsWith('def-') && ENTRY_BY_ID[base.slice(4)] ? base.slice(4) : base;
   const entry = Topic || lesson || path ? undefined : ENTRY_BY_ID[termId];
-  const page = Topic ? 'vis' : lesson ? 'lesson' : path ? 'path' : entry ? 'term' : PAGE_TITLES[route] ? route : pageForAnchor(route) ?? 'missing';
-  const anchor = !Topic && !lesson && !path && !entry && !PAGE_TITLES[route] && page !== 'home' ? route : null;
+  const page = Topic ? 'vis' : lesson ? 'lesson' : path ? 'path' : entry ? 'term' : PAGE_TITLES[base] ? base : pageForAnchor(base) ?? 'missing';
+  const anchor = !Topic && !lesson && !path && !entry && !PAGE_TITLES[base] && page !== 'home' ? base : null;
 
   useEffect(() => {
     if (!ready || user || !restricted) return;
@@ -61,14 +65,14 @@ export function App() {
   useEffect(() => {
     const label = checking ? 'Checking your session'
       : showWorld ? 'Crypto Dungeon'
-      : touring ? tourLabel(route)
-      : Topic ? TOPIC_BY_ID[route].title
+      : touring ? tourLabel(base)
+      : Topic ? TOPIC_BY_ID[base].title
       : lesson ? LESSON_BY_ID[lesson]?.title ?? 'Lesson'
       : path ? PATH_BY_ID[path]?.title ?? 'Learning path'
       : entry ? entry.headword
       : PAGE_TITLES[page];
     document.title = (label ? label + ' · ' : '') + 'VisuCrypto · sunhacks 9.0';
-  }, [Topic, route, entry, page, lesson, path, touring, checking, showWorld]);
+  }, [Topic, base, entry, page, lesson, path, touring, checking, showWorld]);
 
   // New page: start at the top. In-page anchor: scroll to it once rendered.
   useLayoutEffect(() => {
@@ -110,14 +114,15 @@ export function App() {
   if (showWorld) return <World />;
 
   // The tour and the visualizations take over the whole screen, without the site header.
-  if (touring) return <World layer={<Tour key={route} route={route} />} />;
-  if (Topic) return <World layer={<Topic key={route} />} />;
+  if (touring) return <World layer={<Tour key={base} route={base} />} />;
+  if (Topic) return <World layer={<Topic key={base} />} />;
 
   return <World layer={<>
       <Header />
       {view !== 'all' && <Banner view={view} onReset={() => setView('all')} />}
       <main className="wrap" id="top">
         {page === 'library' && <Home />}
+        {page === 'research' && <Research />}
         {page === 'missing' && <p className="noresult">That page is not in the library. <a href="#library">Library</a> · <a href="#world">Return to world</a></p>}
         {page === 'terms' && <Terms />}
         {page === 'term' && <TermPage id={termId} />}

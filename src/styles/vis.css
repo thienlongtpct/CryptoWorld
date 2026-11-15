@@ -9,6 +9,12 @@
 .vis{position:fixed;inset:0;z-index:30;display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr) auto;
   grid-template-areas:"top top" "stage panel" "bar bar";background:var(--vis-stage);font-family:var(--f-ui);color:var(--ink);
   padding-top:env(safe-area-inset-top,0px)}
+.vis-mission{grid-column:1/-1;padding:8px 12px;background:#e8ecef;border-bottom:1px solid #c5ccd3;display:grid;gap:6px}
+.vis-mission .mission-rail{max-width:none;box-shadow:none}
+.vis-mission-note{margin:0;font-size:.85rem;color:#3d4650}
+@media (max-width:640px){
+  .vis-mission{padding:8px}
+}
 
 /* top bar */
 .vis-top{grid-area:top;display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:var(--vis-top);color:#fff;

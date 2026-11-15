@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { isRestricted } from './access';
+import { isRestricted, routeBase } from './access';
 import { ENTRY_BY_ID } from './data/entries';
 
 export type LearnStatus = 'seen' | 'done';
@@ -152,7 +152,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     setProgress({});
     setAuthOpen(false);
     setIntent(null);
-    if (isRestricted(readHash(), !!ENTRY_BY_ID[readHash()])) location.hash = 'world';
+    const hash = readHash();
+    if (isRestricted(hash, !!ENTRY_BY_ID[routeBase(hash)])) location.hash = 'world';
   }, [setIntent]);
 
   const track = useCallback(async (itemId: string, status: LearnStatus) => {
@@ -184,11 +185,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const cancelAuth = useCallback(() => {
     setAuthOpen(false);
     setIntent(null);
-    if (isRestricted(readHash(), !!ENTRY_BY_ID[readHash()])) location.hash = 'world';
+    const hash = readHash();
+    if (isRestricted(hash, !!ENTRY_BY_ID[routeBase(hash)])) location.hash = 'world';
   }, [setIntent]);
 
   const requestAccess = useCallback((dest: string, reason: string) => {
-    if (userRef.current) {
+    const base = routeBase(dest);
+    // Public desks (world, research intro) open without a session; lessons still ask for login.
+    if (userRef.current || !isRestricted(base, !!ENTRY_BY_ID[base])) {
       if (readHash() !== dest) location.hash = dest;
       return;
     }

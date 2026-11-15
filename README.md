@@ -89,7 +89,7 @@ npm install
 npm run dev
 ```
 
-Opens a hot-reloading dev server at `http://localhost:8765/` and the account server at `http://127.0.0.1:8787`. The dev server proxies `/api` to it, so registration and learning progress work on the site. `npm run server` starts the account server on its own. Accounts are stored in `data/accounts.json` on this machine.
+Opens a hot-reloading dev server at `http://localhost:8765/` and the account server at `http://127.0.0.1:8787`. The dev server proxies `/api` to it, so registration and learning progress work on the site. `npm run server` starts the account server on its own. Accounts are stored in `data/accounts.json` on this machine. Set `TIGER_DATABASE_URL` (see [TigerData](#tigerdata)) to store them in Tiger Cloud Postgres instead.
 
 | Command | What it does |
 |---|---|
@@ -180,6 +180,12 @@ export function MyVis() {
 3. Register it in `TOPIC_PAGES` in `src/vis/topics.tsx`. For an interactive-only topic, pass `stage={<Component />}` instead of `frames`.
 
 
+**Change Bit, the cipher companion.** Bit lives in `src/bit/` and is mounted once by `World.tsx`, so it works on the map and on every Library page.
+- Appearance: `art.ts` holds the palette, the 16 × 16 sprite (world and guide button) and the 32 × 32 portrait as character grids, plus the six expressions (`FACES`). Nothing is loaded at runtime.
+- Dialogue: `script.ts` holds every local message (`LINES`, `placeScript`), the menu, curated gate hints (from `hints` in `dungeon/challenges.ts`) and the place detection (`placeOf`). Keep each message to one short idea; `lintScript` and `test/bit.test.ts` check links and length.
+- Triggers: `tutorialFor` and `AUTO_OPEN` decide which places open a dialogue once and which only show a nudge. Seen tutorials and the instant-text setting are stored by `loadBit`/`saveBit` in `dungeon/rooms.ts`.
+- Behaviour: `typewriter.ts` (graphemes, punctuation pauses, one press reveals or advances) and `BitDialogue.tsx` (keyboard capture, focus, screen-reader announcement). Free-form questions go to `POST /api/npc` with `characterId: 'bit'`, handled by `prepareGuide` in `characters/views.ts`.
+
 **Add a short dictionary term.** Add an object to `ENTRIES` in `src/data/entries.ts`; keep the list in A–Z order of `headword`:
 
 ```ts
@@ -243,24 +249,59 @@ CloudFront
 
 The site and the account API share one hostname, so the session cookie stays on the same origin the dev server already uses for `/api`. Local accounts stay in `data/accounts.json`. Accounts created on AWS are stored in DynamoDB. The session cookie is marked `Secure` in AWS, where CloudFront serves the site over HTTPS.
 
-The running pieces are a private S3 bucket, a CloudFront distribution, an on-demand Lambda function, and an on-demand DynamoDB table.
+The running pieces are a private S3 bucket, a CloudFront distribution, an API Lambda (20s), a DynamoDB table, an SQS lab queue, and a lab-worker Lambda (Maritime runs outside the API timeout). The site and `/api/*` stay on one CloudFront hostname so session cookies remain same-origin and `Secure` in AWS.
+
+### Placeholders (never commit real values)
+
+```bash
+TINYFISH_API_KEY="<YOUR_TINYFISH_API_KEY>"
+MARITIME_API_KEY="<YOUR_MARITIME_API_KEY>"
+GEMINI_API_KEY="<YOUR_EXISTING_GEMINI_API_KEY>"
+GEMINI_MODEL="<YOUR_ENABLED_GEMINI_MODEL>"
+AWS_REGION="<YOUR_AWS_REGION>"
+AWS_PROFILE="<YOUR_AWS_PROFILE>"
+AWS_DEPLOY_ROLE_ARN="<YOUR_EXISTING_AWS_DEPLOY_ROLE_ARN>"
+SPONSOR_SECRET_ARN="<YOUR_SECRET_ARN_IF_USED>"
+```
+
+Preferred production path: store JSON in Secrets Manager and pass only the ARN into deploy:
+
+```json
+{
+  "TINYFISH_API_KEY": "<YOUR_TINYFISH_API_KEY>",
+  "MARITIME_API_KEY": "<YOUR_MARITIME_API_KEY>",
+  "GEMINI_API_KEY": "<YOUR_EXISTING_GEMINI_API_KEY>",
+  "GEMINI_MODEL": "<YOUR_ENABLED_GEMINI_MODEL>",
+  "TIGER_DATABASE_URL": "<YOUR_TIGER_CLOUD_CONNECTION_STRING>"
+}
+```
+
+`SPONSOR_SECRET_ARN` grants `secretsmanager:GetSecretValue` to the API and lab-worker Lambdas. Existing `GEMINI_API_KEY` / `GEMINI_MODEL` Lambda env settings are still honored when set. Keys must not appear in the browser bundle, git, or CI synth (synth uses empty dummy sponsor config).
 
 ### Turn delivery on
 
 You need an AWS account, the AWS CLI, and credentials that can create the stack the first time. Later deploys from GitHub assume a role with OpenID Connect, so the repository holds no access key.
 
-1. Build the site and create the stack. CloudFront is global; the region you pick is where the API, the table, and the bucket live.
+1. Build the site and create the stack. CloudFront is global; the region you pick is where the API, the table, the queue, and the bucket live.
 
 ```bash
+export AWS_REGION="<YOUR_AWS_REGION>"
+export AWS_PROFILE="<YOUR_AWS_PROFILE>"
 npm ci
-npm run build
+npm run ci
 cd infra
 npm ci
+npx tsc --noEmit
+npx cdk synth -c githubRepo=OWNER/NAME --no-notices
 npx cdk bootstrap aws://ACCOUNT/REGION
+# Optional before deploy:
+# export SPONSOR_SECRET_ARN="<YOUR_SECRET_ARN_IF_USED>"
+# export GEMINI_API_KEY="<YOUR_EXISTING_GEMINI_API_KEY>"
+# export GEMINI_MODEL="<YOUR_ENABLED_GEMINI_MODEL>"
 npx cdk deploy --require-approval never -c githubRepo=OWNER/NAME
 ```
 
-2. Copy the `DeployRoleArn` output. Trust that role from the CDK toolkit, then add the repository variables under Settings → Secrets and variables → Actions → Variables.
+2. Copy the `DeployRoleArn` output. Trust that role from the CDK toolkit, then add the repository variables / secrets under Settings → Secrets and variables → Actions.
 
 ```bash
 npx cdk bootstrap aws://ACCOUNT/REGION \
@@ -268,17 +309,99 @@ npx cdk bootstrap aws://ACCOUNT/REGION \
   --cloudformation-execution-policies arn:aws:iam::aws:policy/AdministratorAccess
 ```
 
-| Variable | Value |
-|---|---|
-| `AWS_DEPLOY_ROLE_ARN` | The `DeployRoleArn` output |
-| `AWS_REGION` | The region you bootstrapped. The workflow uses `us-west-2` when this is empty |
-| `AWS_OIDC_PROVIDER_ARN` | Only when the account already has a GitHub OpenID provider. Pass the same ARN as `-c githubOidcProviderArn=...` on the first deploy |
+| Name | Kind | Value |
+|---|---|---|
+| `AWS_DEPLOY_ROLE_ARN` | Variable | `<YOUR_EXISTING_AWS_DEPLOY_ROLE_ARN>` / `DeployRoleArn` output |
+| `AWS_REGION` | Variable | `<YOUR_AWS_REGION>` (workflow default `us-west-2` when empty) |
+| `AWS_OIDC_PROVIDER_ARN` | Variable | Only when the account already has a GitHub OpenID provider |
+| `SPONSOR_SECRET_ARN` | Secret | `<YOUR_SECRET_ARN_IF_USED>` (preferred) |
+| `GEMINI_API_KEY` | Secret | `<YOUR_EXISTING_GEMINI_API_KEY>` if not only in the sponsor secret |
+| `GEMINI_MODEL` | Secret | `<YOUR_ENABLED_GEMINI_MODEL>` |
+| `TINYFISH_API_KEY` / `MARITIME_API_KEY` | Secret | Only if not using `SPONSOR_SECRET_ARN` |
+| `TIGER_DATABASE_URL` | Secret | Only if not using `SPONSOR_SECRET_ARN`; leave empty to stay on DynamoDB |
+| `SITE_DOMAINS` | Variable | Optional, e.g. `example.com,www.example.com` (see [Use your own domain](#use-your-own-domain)) |
+| `SITE_CERTIFICATE_ARN` | Variable | Required with `SITE_DOMAINS`: ACM certificate ARN in **us-east-1** |
 
-3. Push to `main`. The delivery job deploys the stack, uploads the tested page, and requests the site and `/api/health`.
+3. Push to `main`. The delivery job deploys the stack, uploads the tested page, and runs `scripts/smoke.mjs` (site + `/api/health` readiness booleans — no paid provider calls).
 
-The CloudFormation execution role from that bootstrap can administer the account. That is the role CDK uses to create the bucket, the distribution, the function, and the table. The GitHub role can only assume those CDK toolkit roles, and only from a workflow running on `main`.
+### Use your own domain
 
-Destroying the stack leaves the account table and the site bucket in the account. The table holds password hashes and learning progress.
+CloudFront has no fixed IP address. Its edge IPs change, so **don't create an A record with an IP you looked up**. Point DNS at the CloudFront hostname instead. That hostname is the `DnsTarget` stack output, something like `dxxxxxxxxxxxx.cloudfront.net`. It stays the same for the life of the distribution, so the records you create never need updating.
+
+1. **Request a certificate in us-east-1.** CloudFront only reads certificates from that region, even though the stack runs elsewhere. In the ACM console, switch to *US East (N. Virginia)*, then choose *Request a public certificate*. List every hostname (`example.com` and `www.example.com`) and choose DNS validation. ACM shows one CNAME per hostname, named like `_abc123.example.com` with a value like `_xyz.acm-validations.aws.`. Add those CNAMEs at your DNS provider and keep them, so the certificate renews automatically. Wait for the status *Issued*. Or use the CLI:
+
+   ```bash
+   aws acm request-certificate --region us-east-1 --validation-method DNS \
+     --domain-name example.com --subject-alternative-names www.example.com
+   ```
+
+2. **Deploy with the domain.** Set the repository variables `SITE_DOMAINS=example.com,www.example.com` and `SITE_CERTIFICATE_ARN=arn:aws:acm:us-east-1:…`, then push to `main`. You can also deploy by hand:
+
+   ```bash
+   npx cdk deploy -c githubRepo=OWNER/NAME \
+     -c siteDomains=example.com,www.example.com \
+     -c siteCertificateArn=arn:aws:acm:us-east-1:ACCOUNT:certificate/ID
+   ```
+
+   Both values are optional and must be set together. With neither set (CI synth, first bring-up), the site stays on its `cloudfront.net` hostname.
+
+3. **Create the DNS records** at your DNS provider, using `DnsTarget` as the value:
+
+   | Host | Type | Value |
+   |---|---|---|
+   | `www` | `CNAME` | `dxxxxxxxxxxxx.cloudfront.net` |
+   | `@` (apex) | `ALIAS` / `ANAME` / flattened `CNAME` | `dxxxxxxxxxxxx.cloudfront.net` |
+
+   Use whichever apex record type your provider offers. Namecheap and Porkbun call it `ALIAS`, DNSimple and others call it `ANAME`, and Cloudflare flattens a `CNAME` at `@` (set Proxy to *DNS only*). Route 53 uses an `A` record with *Alias* to the CloudFront distribution. If your provider has no apex alias at all (GoDaddy, for example), pick one of these:
+   - Use the provider's *URL forwarding* to send `example.com` to `https://www.example.com`, and serve the site on `www` only.
+   - Move the domain's nameservers to Route 53 or Cloudflare, which keeps the registrar.
+   - As a last resort, use [CloudFront Anycast static IPs](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/request-static-ips.html). These are real fixed IPs for plain `A` records, but they cost a fixed monthly fee per IP list (about $3,000/month at launch), require the *all edge locations* price class, and this stack doesn't create them.
+
+The site and `/api/*` share the hostname you browse to, so sign-in cookies work the same on `example.com`, `www.example.com` and the `cloudfront.net` name. Accounts are shared, but each hostname keeps its own session cookie. `SiteUrl` (used by `scripts/smoke.mjs`) stays the `cloudfront.net` URL, so a deploy before DNS is ready still passes the smoke check. To check a custom hostname, run `node scripts/smoke.mjs https://www.example.com`.
+
+### Production smoke checklist (after deploy)
+
+1. `node scripts/smoke.mjs https://<SiteUrl>` — page `#root`, health `ok`, readiness booleans.
+2. Register / sign in on the live hostname; cookie is `Secure` + same-origin `/api`.
+3. Start a research job and a lab run as two different accounts; confirm cross-user GET is 404.
+4. Confirm failed/expired jobs show useful UI states; authored hints still work without Gemini.
+5. Complete the Forged seal submit; Journal → Skills shows server evidence (not a certification).
+6. **Paid provider smoke (explicit, not CI):**
+
+```bash
+SITE_URL=https://<SiteUrl> node scripts/smoke-sponsors.mjs
+```
+
+That script performs one TinyFish research run and one Maritime lab run when `/api/health` reports them configured. If keys are unavailable, skip it and treat live verification as pending.
+
+The CloudFormation execution role from that bootstrap can administer the account. That is the role CDK uses to create the bucket, the distribution, the functions, the queue, and the table. The GitHub role can only assume those CDK toolkit roles, and only from a workflow running on `main`.
+
+### TinyFish
+
+`TINYFISH_API_KEY` (env or sponsor secret) turns on three server-side uses of TinyFish browser automation. The key never reaches the page.
+
+- **Research Desk** (`#research`, `server/research.mjs`): a learner starts a run for an approved topic or paper in `server/research-catalog.mjs`. Results are validated resource cards, cached 24 hours, 8 runs per learner per day.
+- **Tutors cite research** (`server/tutor-sources.mjs`): when a learner asks a Dungeon NPC a question, the server looks up that learner's completed research for the region's topics (and the open challenge's lesson) and passes up to 4 sources to Gemini as `learnerSources`. They are marked as untrusted quoted material, and the tutor cites them as `[n]`. The reply lists only the cited sources. No TinyFish run is started here. With nothing to cite, the reply links to the matching Research Desk topic.
+- **News watch** (`GET /api/news`, `server/news.mjs`, shown on the Research page): one shared run per allowlisted source (NIST CSRC news, IACR ePrint last 7 days) per UTC day, stored as research jobs owned by `system:news`. The first signed-in visit of the day starts it, later visits reuse it, polling TinyFish at most every 20 seconds. Item links must stay on the source's hosts, and headlines are tagged with related lessons by keyword. A failed day shows the latest digest from the previous 3 days and retries after an hour. Opening a headline (`POST /api/news/read`) records practice evidence. Cost is at most 2 runs a day plus retries, whatever the number of learners. Two Lambdas cold-starting at the same moment could each start a run.
+
+### TigerData
+
+Setting `TIGER_DATABASE_URL` to a Tiger Cloud service's connection string (in `.env` locally, or as `TIGER_DATABASE_URL` inside the `SPONSOR_SECRET_ARN` JSON on AWS) switches the account server to `server/pg-store.mjs`. Without it, nothing changes: the JSON file locally, DynamoDB on AWS. Switching does not copy existing accounts.
+
+The store creates its tables on first use, holding a Postgres advisory lock so concurrent Lambda cold starts migrate once. When the TimescaleDB extension is available (always on Tiger Cloud):
+
+- `evidence` is a **hypertable** partitioned by `at` in 7-day chunks. Its key is `(id, at)` because hypertable unique keys must include the time column.
+- `activity_daily` is a **real-time continuous aggregate** (`time_bucket('1 day')` per user and evidence type), refreshed every 30 minutes and including rows newer than the last refresh.
+
+On plain Postgres the same names exist as an ordinary table and view. `GET /api/activity` reads `activity_daily` for the last 30 days and returns per-day totals and a streak, shown as a strip on Journal → Skills. On other stores it returns `{ enabled: false }` and the strip stays hidden. `/api/health` reports `tigerdata: true` when this store is active.
+
+`test/store-contract.test.mjs` runs one behaviour suite on the memory store, and also on Postgres when `TEST_TIGER_DATABASE_URL` points at a database it may wipe:
+
+```bash
+TEST_TIGER_DATABASE_URL=postgres://localhost:5432/visucrypto_test npm test
+```
+
+Destroying the stack leaves the account table and the site bucket in the account. The table holds password hashes, learning progress, and skills evidence.
 
 ---
 

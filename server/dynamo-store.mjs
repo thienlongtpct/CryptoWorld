@@ -169,5 +169,202 @@ export function createDynamoStore(tableName, options = {}) {
         };
       }
     },
+
+    async saveResearchJob(job) {
+      const ttl = Math.floor(job.expiresAt / 1000);
+      const item = {
+        pk: `RESEARCH#${job.id}`,
+        sk: 'JOB',
+        ...job,
+        ttl,
+      };
+      await client.send(new PutCommand({ TableName: tableName, Item: item }));
+      await client.send(new PutCommand({
+        TableName: tableName,
+        Item: {
+          pk: `USER#${job.userId}`,
+          sk: `RFP#${job.fingerprint}`,
+          jobId: job.id,
+          status: job.status,
+          expiresAt: job.expiresAt,
+          updatedAt: job.updatedAt,
+          ttl,
+        },
+      }));
+      return job;
+    },
+
+    async getResearchJob(jobId) {
+      const found = await client.send(new GetCommand({
+        TableName: tableName,
+        Key: { pk: `RESEARCH#${jobId}`, sk: 'JOB' },
+      }));
+      if (!found.Item) return null;
+      const { pk, sk, ttl, ...job } = found.Item;
+      return job;
+    },
+
+    async findResearchJobByFingerprint(userId, fingerprint, at = now()) {
+      const pointer = await client.send(new GetCommand({
+        TableName: tableName,
+        Key: { pk: `USER#${userId}`, sk: `RFP#${fingerprint}` },
+      }));
+      if (!pointer.Item || pointer.Item.expiresAt <= at) return null;
+      const job = await this.getResearchJob(pointer.Item.jobId);
+      if (!job || job.userId !== userId || job.fingerprint !== fingerprint || job.expiresAt <= at) return null;
+      return job;
+    },
+
+    /** Unexpired research jobs for one user, newest first, via the RFP# pointers. */
+    async researchJobsFor(userId, at = now()) {
+      const found = await client.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+        ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':prefix': 'RFP#' },
+      }));
+      const pointers = (found.Items ?? []).filter(item => item.expiresAt > at).slice(0, 25);
+      const jobs = await Promise.all(pointers.map(item => this.getResearchJob(item.jobId)));
+      return jobs
+        .filter(job => job && job.userId === userId && job.expiresAt > at)
+        .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    },
+
+    async researchUsageFor(userId, day) {
+      const found = await client.send(new GetCommand({
+        TableName: tableName,
+        Key: { pk: `USER#${userId}`, sk: `RUSAGE#${day}` },
+      }));
+      return found.Item?.count ?? 0;
+    },
+
+    async incrementResearchUsage(userId, day) {
+      const result = await client.send(new UpdateCommand({
+        TableName: tableName,
+        Key: { pk: `USER#${userId}`, sk: `RUSAGE#${day}` },
+        UpdateExpression: 'ADD #count :one SET userId = :userId, #day = :day',
+        ExpressionAttributeNames: { '#count': 'count', '#day': 'day' },
+        ExpressionAttributeValues: {
+          ':one': 1,
+          ':userId': userId,
+          ':day': day,
+        },
+        ReturnValues: 'UPDATED_NEW',
+      }));
+      return result.Attributes?.count ?? 1;
+    },
+
+    async saveLabJob(job) {
+      const ttl = Math.floor(job.expiresAt / 1000);
+      const item = { pk: `LAB#${job.id}`, sk: 'JOB', ...job, ttl };
+      await client.send(new PutCommand({ TableName: tableName, Item: item }));
+      await client.send(new PutCommand({
+        TableName: tableName,
+        Item: {
+          pk: `USER#${job.userId}`,
+          sk: `LFP#${job.fingerprint}`,
+          jobId: job.id,
+          status: job.status,
+          expiresAt: job.expiresAt,
+          updatedAt: job.updatedAt,
+          ttl,
+        },
+      }));
+      const activeKey = { pk: `USER#${job.userId}`, sk: `LABACTIVE#${job.id}` };
+      if (job.status === 'queued' || job.status === 'running') {
+        await client.send(new PutCommand({
+          TableName: tableName,
+          Item: {
+            ...activeKey,
+            jobId: job.id,
+            status: job.status,
+            expiresAt: job.expiresAt,
+            ttl,
+          },
+        }));
+      } else {
+        await client.send(new DeleteCommand({ TableName: tableName, Key: activeKey }));
+      }
+      return job;
+    },
+
+    async getLabJob(jobId) {
+      const found = await client.send(new GetCommand({
+        TableName: tableName,
+        Key: { pk: `LAB#${jobId}`, sk: 'JOB' },
+      }));
+      if (!found.Item) return null;
+      const { pk, sk, ttl, ...job } = found.Item;
+      return job;
+    },
+
+    async findLabJobByFingerprint(userId, fingerprint, at = now()) {
+      const pointer = await client.send(new GetCommand({
+        TableName: tableName,
+        Key: { pk: `USER#${userId}`, sk: `LFP#${fingerprint}` },
+      }));
+      if (!pointer.Item || pointer.Item.expiresAt <= at) return null;
+      const job = await this.getLabJob(pointer.Item.jobId);
+      if (!job || job.userId !== userId || job.fingerprint !== fingerprint || job.expiresAt <= at) return null;
+      return job;
+    },
+
+    async countActiveLabJobs(userId, at = now()) {
+      const found = await client.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+        ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':prefix': 'LABACTIVE#' },
+      }));
+      return (found.Items ?? []).filter(item =>
+        item.expiresAt > at && (item.status === 'queued' || item.status === 'running')).length;
+    },
+
+    async labUsageFor(userId, day) {
+      const found = await client.send(new GetCommand({
+        TableName: tableName,
+        Key: { pk: `USER#${userId}`, sk: `LUSAGE#${day}` },
+      }));
+      return found.Item?.count ?? 0;
+    },
+
+    async incrementLabUsage(userId, day) {
+      const result = await client.send(new UpdateCommand({
+        TableName: tableName,
+        Key: { pk: `USER#${userId}`, sk: `LUSAGE#${day}` },
+        UpdateExpression: 'ADD #count :one SET userId = :userId, #day = :day',
+        ExpressionAttributeNames: { '#count': 'count', '#day': 'day' },
+        ExpressionAttributeValues: {
+          ':one': 1,
+          ':userId': userId,
+          ':day': day,
+        },
+        ReturnValues: 'UPDATED_NEW',
+      }));
+      return result.Attributes?.count ?? 1;
+    },
+
+    async appendEvidence(row) {
+      const atMs = Date.parse(row.at) || now();
+      await client.send(new PutCommand({
+        TableName: tableName,
+        Item: {
+          pk: `USER#${row.userId}`,
+          sk: `EVIDENCE#${atMs.toString(36)}#${row.id}`,
+          ...row,
+        },
+      }));
+      return row;
+    },
+
+    async evidenceFor(userId) {
+      const found = await client.send(new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+        ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':prefix': 'EVIDENCE#' },
+      }));
+      return (found.Items ?? []).map(item => {
+        const { pk, sk, ...row } = item;
+        return row;
+      });
+    },
   };
 }

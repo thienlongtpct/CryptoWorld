@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../state';
 import { PAPERS, PAPER_BY_ID, PAPER_CATS, type Paper, type PaperCat } from '../data/papers';
+import { RESEARCH_PAPER_IDS, researchHref } from '../data/research';
 import { Seg } from './ui';
 
 const LANES = Object.keys(PAPER_CATS) as PaperCat[];
@@ -122,6 +123,9 @@ export function PapersExplorer() {
             <div className="kv" style={{ justifyContent: 'flex-start' }}><span>built upon by</span>
               <span className="legend">{kids.length ? kids.map(i => <button key={i} className="chip" onClick={() => setPaper(i)}>{PAPER_BY_ID[i].label}</button>) : <span className="muted">—</span>}</span></div>
             <a href={`https://scholar.google.com/scholar?q=${encodeURIComponent(p.title)}`} target="_blank" rel="noopener noreferrer">Find on Google Scholar ↗</a>
+            {RESEARCH_PAPER_IDS.has(p.id) && (
+              <a className="btn" href={`#${researchHref({ paper: p.id })}`}>Research this paper at the Desk</a>
+            )}
           </>
         ) : <span className="muted">Select a paper.</span>}
       </div>

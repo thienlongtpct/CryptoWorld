@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { LOCATIONS } from './locations';
+import { LocationIcon } from './LocationIcon';
 
 /** Small pixel icons for the four steps, drawn on an 8 × 8 grid. */
 const ICONS: Record<'explore' | 'learn' | 'solve' | 'unlock', { rows: string[]; colors: Record<string, string> }> = {
@@ -38,18 +40,8 @@ const STEPS: { icon: keyof typeof ICONS; title: string; text: string }[] = [
   { icon: 'unlock', title: 'Unlock', text: 'Each solved gate opens the next room and is saved to your account.' },
 ];
 
-const PLACES: { name: string; what: string; color: string }[] = [
-  { name: 'Library Sanctuary', what: 'The hub, and the way into the dungeon', color: '#4f6086' },
-  { name: 'Cipher Catacombs', what: 'Three gates and a treasure room', color: '#2f434c' },
-  { name: 'Key Exchange Bridge', what: 'Public or private? Sort what Eve can see', color: '#4f8ccf' },
-  { name: 'Hash Forest', what: 'Forge a weak seal, then open the shrine', color: '#3a5c29' },
-  { name: 'Private Set Gardens', what: 'What does PSI reveal about each plant?', color: '#81c784' },
-  { name: 'Cipher court', what: 'Caesar, Vigenère, secret sharing', color: '#b4552f' },
-  { name: 'Hash crypt', what: 'Hashes, block ciphers, modes', color: '#45606b' },
-  { name: 'Key citadel', what: 'Diffie–Hellman, RSA, elliptic curves', color: '#8a95a5' },
-  { name: 'Circuit shop', what: 'Oblivious transfer, garbled circuits', color: '#527c3b' },
-  { name: 'Overlap garden', what: 'Private set intersection and union', color: '#6fa8ae' },
-];
+/** Every location, open ones first, from the shared location config. */
+const PLACES = [...LOCATIONS].sort((a, b) => Number(b.open) - Number(a.open));
 
 /**
  * The first screen a visitor sees: what this is, how a session goes, what is inside, and how to move.
@@ -106,10 +98,11 @@ export function Landing({ user, ready, onStart, onLogin, onRegister, onBrowse }:
           <summary>What is inside, and how to move</summary>
           <ul className="lp-places">
             {PLACES.map(place => (
-              <li key={place.name}>
-                <span className="lp-swatch" style={{ background: place.color }} aria-hidden="true" />
-                <b>{place.name}</b>
-                <span>{place.what}</span>
+              <li key={place.id} style={{ ['--loc' as string]: place.accent.base }}>
+                <LocationIcon id={place.id} size={28} />
+                <b>{place.name}{!place.open && <em className="lp-soon">Coming later</em>}</b>
+                <span className="lp-sub">{place.subtitle}</span>
+                <span>{place.description}</span>
               </li>
             ))}
           </ul>

@@ -3,13 +3,31 @@ import { dirname } from 'node:path';
 import { hashToken, newToken, SESSION_MS } from './tokens.mjs';
 
 export function emptyDb() {
-  return { users: [], sessions: [], progress: [] };
+  return {
+    users: [],
+    sessions: [],
+    progress: [],
+    researchJobs: [],
+    researchUsage: [],
+    labJobs: [],
+    labUsage: [],
+    evidence: [],
+  };
 }
 
 export function readDb(dbPath) {
   try {
     const db = JSON.parse(readFileSync(dbPath, 'utf8'));
-    return { users: db.users ?? [], sessions: db.sessions ?? [], progress: db.progress ?? [] };
+    return {
+      users: db.users ?? [],
+      sessions: db.sessions ?? [],
+      progress: db.progress ?? [],
+      researchJobs: db.researchJobs ?? [],
+      researchUsage: db.researchUsage ?? [],
+      labJobs: db.labJobs ?? [],
+      labUsage: db.labUsage ?? [],
+      evidence: db.evidence ?? [],
+    };
   } catch {
     return emptyDb();
   }
@@ -126,6 +144,134 @@ export function createJsonStore(load, save, options = {}) {
         }
         return { value: { itemId: row.itemId, status: row.status, at: row.at } };
       });
+    },
+
+    saveResearchJob(job) {
+      return update(db => {
+        const ix = db.researchJobs.findIndex(row => row.id === job.id);
+        const copy = structuredClone(job);
+        if (ix >= 0) db.researchJobs[ix] = copy;
+        else db.researchJobs.push(copy);
+        return { value: copy };
+      });
+    },
+
+    getResearchJob(jobId) {
+      return update(db => {
+        const job = db.researchJobs.find(row => row.id === jobId);
+        return { write: false, value: job ? structuredClone(job) : null };
+      });
+    },
+
+    findResearchJobByFingerprint(userId, fingerprint, at = now()) {
+      return update(db => {
+        const matches = db.researchJobs
+          .filter(row => row.userId === userId && row.fingerprint === fingerprint && row.expiresAt > at)
+          .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+        return { write: false, value: matches[0] ? structuredClone(matches[0]) : null };
+      });
+    },
+
+    researchJobsFor(userId, at = now()) {
+      return update(db => ({
+        write: false,
+        value: db.researchJobs
+          .filter(row => row.userId === userId && row.expiresAt > at)
+          .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+          .map(row => structuredClone(row)),
+      }));
+    },
+
+    researchUsageFor(userId, day) {
+      return update(db => {
+        const row = db.researchUsage.find(item => item.userId === userId && item.day === day);
+        return { write: false, value: row?.count ?? 0 };
+      });
+    },
+
+    incrementResearchUsage(userId, day) {
+      return update(db => {
+        const row = db.researchUsage.find(item => item.userId === userId && item.day === day);
+        if (!row) {
+          db.researchUsage.push({ userId, day, count: 1 });
+          return { value: 1 };
+        }
+        row.count += 1;
+        return { value: row.count };
+      });
+    },
+
+    saveLabJob(job) {
+      return update(db => {
+        const ix = db.labJobs.findIndex(row => row.id === job.id);
+        const copy = structuredClone(job);
+        if (ix >= 0) db.labJobs[ix] = copy;
+        else db.labJobs.push(copy);
+        return { value: copy };
+      });
+    },
+
+    getLabJob(jobId) {
+      return update(db => {
+        const job = db.labJobs.find(row => row.id === jobId);
+        return { write: false, value: job ? structuredClone(job) : null };
+      });
+    },
+
+    findLabJobByFingerprint(userId, fingerprint, at = now()) {
+      return update(db => {
+        const matches = db.labJobs
+          .filter(row => row.userId === userId && row.fingerprint === fingerprint && row.expiresAt > at)
+          .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+        return { write: false, value: matches[0] ? structuredClone(matches[0]) : null };
+      });
+    },
+
+    countActiveLabJobs(userId, at = now()) {
+      return update(db => ({
+        write: false,
+        value: db.labJobs.filter(row =>
+          row.userId === userId
+          && row.expiresAt > at
+          && (row.status === 'queued' || row.status === 'running')).length,
+      }));
+    },
+
+    labUsageFor(userId, day) {
+      return update(db => {
+        const row = db.labUsage.find(item => item.userId === userId && item.day === day);
+        return { write: false, value: row?.count ?? 0 };
+      });
+    },
+
+    incrementLabUsage(userId, day) {
+      return update(db => {
+        const row = db.labUsage.find(item => item.userId === userId && item.day === day);
+        if (!row) {
+          db.labUsage.push({ userId, day, count: 1 });
+          return { value: 1 };
+        }
+        row.count += 1;
+        return { value: row.count };
+      });
+    },
+
+    appendEvidence(row) {
+      return update(db => {
+        if (!db.users.some(user => user.id === row.userId)) return { write: false, value: null };
+        const copy = structuredClone(row);
+        db.evidence.push(copy);
+        return { value: copy };
+      });
+    },
+
+    evidenceFor(userId) {
+      return update(db => ({
+        write: false,
+        value: db.evidence
+          .filter(row => row.userId === userId)
+          .map(row => structuredClone(row)),
+      }));
     },
   };
 }

@@ -8,6 +8,8 @@ import {
   type AskMode,
   type Scenario,
 } from './cast.ts';
+import { TOPIC_BY_ID } from '../vis/registry.ts';
+import { LOCATION_BY_ID, locationOfRegion, type Location } from '../world/locations.ts';
 
 export const HASH_INPUT = 'grove-leaf';
 export const HASH_DIGEST = 'd505d129a279ad5a19f6ee0fad5f1b0c223ed06b31980c17392048c3fdd654c6';
@@ -241,7 +243,7 @@ function viewFor(characterId: string, regionId: string, mode: AskMode, scenario:
       mode,
       scenario,
       context,
-      overview: 'The Library Sanctuary looks onto five grounds buildings. Each building is one area of knowledge and is drawn differently. A message is one choice from a set of possible messages. Secrecy asks what an observer can still infer. This overview is teaching context, not a private memory.',
+      overview: 'The Library of Arcane Ciphers looks onto five grounds buildings. Each building is one area of knowledge and is drawn differently. A message is one choice from a set of possible messages. Secrecy asks what an observer can still infer. This overview is teaching context, not a private memory.',
       public: {},
       own: null,
       publicMessages: [],
@@ -257,7 +259,7 @@ function viewFor(characterId: string, regionId: string, mode: AskMode, scenario:
       context,
       overview: characterId === 'eve'
         ? 'Eve can see the public ciphertext bytes on the byte gate. She does not change, inject, or replace them. The pad is written on the gate for the solver. Seeing those public bytes is not the same as already knowing the letters they become.'
-        : 'The Cipher Catacombs states every shift and every pad on the gate. A teaching overview can describe those public values. It is separate from any one participant’s knowledge. No unstated keyword is part of these gates.',
+        : 'The Labyrinth of Hidden Flags states every shift and every pad on the gate. A teaching overview can describe those public values. It is separate from any one participant’s knowledge. No unstated keyword is part of these gates.',
       public: characterId === 'eve' ? { evidence: xor.evidence } : {},
       own: mode === 'role' ? { assignedSecrets: 'none' } : null,
       publicMessages: characterId === 'eve'
@@ -299,9 +301,62 @@ export function systemFor(characterId: string, mode: AskMode): string {
   return lines.join('\n');
 }
 
+/** Where Bit, the guide, can be asked from. Matches PlaceKind in src/bit/script.ts. */
+export const GUIDE_LOCATIONS = ['entrance', 'sanctuary', 'library', 'catacombs', 'quest', 'vis', 'page', 'gate', 'minigame'] as const;
+
+export const GUIDE_SYSTEM = [
+  'You are Bit, a small floating cipher companion who guides university students and beginners through VisuCrypto, a cryptography learning game.',
+  'Be curious and friendly. Answer in at most three short sentences of plain text, one idea per sentence. Do not use markdown, lists, or headings.',
+  'When you explain a term, use a tiny Alice, Bob, and Eve example: Alice and Bob talk, Eve only listens.',
+  'Use the JSON view for where the learner is and what they are studying. General textbook cryptography is fine. Say so when you are unsure.',
+  'Every number in this game is a toy parameter. Never suggest that the toy schemes are secure.',
+  'Never give a challenge answer, flag, or final word. Offer one small hint, then point to the curated hints and the labeled walkthrough on the gate.',
+].join('\n');
+
+/** Bit, the guide: no fixed region or secrets. The view carries only the place, the topic, and any open gate's public evidence. */
+function prepareGuide(body: Record<string, unknown>): PreparedNpc | RejectedNpc {
+  const question = typeof body.question === 'string' ? body.question.trim() : '';
+  if (!question || question.length > 400) return fail(400, 'Ask a question of at most 400 characters.');
+  const location = GUIDE_LOCATIONS.find(item => item === body.location) ?? 'page';
+  const topic = TOPIC_BY_ID[typeof body.topic === 'string' ? body.topic : ''];
+  const regionCandidate = REGION_BY_ID[typeof body.regionId === 'string' ? body.regionId : ''];
+  const region = regionCandidate?.open ? regionCandidate : undefined;
+  const challenge = CHALLENGE_BY_ID[typeof body.challengeId === 'string' ? body.challengeId : ''];
+  const place = typeof body.place === 'string' ? body.place.replace(/[^\p{L}\p{N} ’'.,:-]/gu, '').slice(0, 60) : '';
+  const landmark: Location | undefined = LOCATION_BY_ID[body.locationId as keyof typeof LOCATION_BY_ID] ?? (region ? locationOfRegion(region.id) : undefined);
+  const view: NpcView = {
+    characterId: 'bit',
+    regionId: region?.id ?? 'guide',
+    mode: 'explain',
+    scenario: 'passive',
+    context: `The learner is at ${place || 'a page of VisuCrypto'} (${location}).`,
+    overview: region ? region.summary : null,
+    public: {
+      location,
+      ...(landmark ? landmarkView(landmark) : {}),
+      ...(topic ? { topic: topic.title, topicBlurb: topic.blurb } : {}),
+    },
+    own: null,
+    publicMessages: [],
+  };
+  let system = GUIDE_SYSTEM;
+  if (challenge) {
+    view.public = { ...view.public, challenge: challenge.title, evidence: challenge.evidence, flagFormat: challenge.flagFormat };
+    view.publicMessages = [challenge.objective];
+    system += '\nThe learner is on a scored challenge. Start with one small hint and ask what they have tried. Do not decide that the challenge is complete and do not award a reward.';
+  }
+  return { ok: true, view, system };
+}
+
+/** The world location around a character, as public scenery for the Gemini view. */
+function landmarkView(landmark: Location) {
+  return { landmark: landmark.name, landmarkTopics: landmark.subtitle, landmarkScene: landmark.description };
+}
+
 export function prepareNpc(input: unknown): PreparedNpc | RejectedNpc {
   if (!input || typeof input !== 'object') return fail(400, 'Send a character, a region, and a question.');
   const body = input as Record<string, unknown>;
+  if (body.characterId === 'bit') return prepareGuide(body);
   const character = CHARACTER_BY_ID[typeof body.characterId === 'string' ? body.characterId : ''];
   const region = REGION_BY_ID[typeof body.regionId === 'string' ? body.regionId : ''];
   const mode: AskMode = body.mode === 'role' ? 'role' : body.mode === 'explain' ? 'explain' : 'explain';
@@ -323,12 +378,14 @@ export function prepareNpc(input: unknown): PreparedNpc | RejectedNpc {
     return fail(400, 'Eve stays passive. Activate Mallory to run the attack simulation.');
   }
   if (scenario === 'active' && region.id !== 'bridge') {
-    return fail(400, 'The attack simulation is only on the Key Exchange Bridge.');
+    return fail(400, 'The attack simulation is only on the Bridge of Shared Secrets.');
   }
   if (scenario === 'active' && !['alice', 'bob', 'mallory'].includes(character.id)) {
     return fail(400, 'The attack simulation is for Alice, Bob, and Mallory.');
   }
   const view = viewFor(character.id, region.id, mode, scenario, appearance.context);
+  const landmark = locationOfRegion(region.id);
+  if (landmark) view.public = { ...landmarkView(landmark), ...view.public };
   const challengeId = typeof body.challengeId === 'string' ? body.challengeId : '';
   const challenge = CHALLENGE_BY_ID[challengeId];
   let system = systemFor(character.id, mode);

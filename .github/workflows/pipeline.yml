@@ -63,6 +63,14 @@ jobs:
 
       - name: Synthesize the AWS template
         working-directory: infra
+        env:
+          # Infrastructure-only: never pass live sponsor keys into synth/CI.
+          SPONSOR_SECRET_ARN: ''
+          TINYFISH_API_KEY: ''
+          MARITIME_API_KEY: ''
+          TIGER_DATABASE_URL: ''
+          GEMINI_API_KEY: ''
+          GEMINI_MODEL: ''
         run: npx cdk synth -c githubRepo=${{ github.repository }} --no-notices
 
       - name: Keep the tested site for delivery
@@ -117,12 +125,27 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           AWS_OIDC_PROVIDER_ARN: ${{ vars.AWS_OIDC_PROVIDER_ARN }}
+          # Optional custom domain: comma-separated hostnames + a us-east-1 ACM certificate ARN.
+          SITE_DOMAINS: ${{ vars.SITE_DOMAINS }}
+          SITE_CERTIFICATE_ARN: ${{ vars.SITE_CERTIFICATE_ARN }}
+          # Prefer a Secrets Manager ARN (keys never land in the template). Env fallbacks preserve Gemini.
+          SPONSOR_SECRET_ARN: ${{ secrets.SPONSOR_SECRET_ARN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          TINYFISH_API_KEY: ${{ secrets.TINYFISH_API_KEY }}
+          MARITIME_API_KEY: ${{ secrets.MARITIME_API_KEY }}
+          TIGER_DATABASE_URL: ${{ secrets.TIGER_DATABASE_URL }}
         run: |
           args=(-c "githubRepo=${GITHUB_REPOSITORY}")
           if [ -n "${AWS_OIDC_PROVIDER_ARN}" ]; then
             args+=(-c "githubOidcProviderArn=${AWS_OIDC_PROVIDER_ARN}")
           fi
+          if [ -n "${SITE_DOMAINS}" ]; then
+            args+=(-c "siteDomains=${SITE_DOMAINS}" -c "siteCertificateArn=${SITE_CERTIFICATE_ARN}")
+          fi
           npx cdk deploy VisuCrypto --require-approval never --outputs-file outputs.json "${args[@]}"
 
       - name: Request the live site and the account API
         run: node scripts/smoke.mjs
+        # Paid TinyFish/Maritime smoke is opt-in after keys are configured:
+        #   SITE_URL=https://… node scripts/smoke-sponsors.mjs

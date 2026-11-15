@@ -1,3 +1,5 @@
+import { L } from '../world/locations.ts';
+
 export type CharacterType = 'protocol' | 'portrayal';
 export type AskMode = 'explain' | 'role';
 export type Scenario = 'passive' | 'active';
@@ -78,7 +80,7 @@ const portrayal = (partial: Omit<Character, 'type'>): Character => ({ ...partial
 export const REGIONS: Region[] = [
   {
     id: 'plaza',
-    name: 'Central Plaza',
+    name: L.crossroads,
     open: true,
     summary: 'Alice welcomes visitors. Bob helps with the paths and the three quests. Their introductions are scripted.',
     topics: [],
@@ -92,91 +94,91 @@ export const REGIONS: Region[] = [
   },
   {
     id: 'grounds',
-    name: 'Library grounds',
+    name: L.crossroads,
     open: true,
     summary: 'The outdoor start. A dirt path leads to the sanctuary. Five buildings are the library, and each one is drawn differently. No protocol secret is assigned here.',
     topics: [],
   },
   {
     id: 'sanctuary',
-    name: 'Library Sanctuary',
+    name: L.library,
     open: true,
-    summary: 'The safe hub. Alice and Bob give directions. The library areas are the buildings outside, and the Cipher Catacombs door is on the south wall.',
+    summary: 'The safe hub. Alice and Bob give directions. The library areas are the buildings outside, and the Labyrinth of Hidden Flags door is on the south wall.',
     topics: [],
   },
   {
     id: 'catacombs',
-    name: 'Cipher Catacombs',
+    name: L.labyrinth,
     open: true,
     summary: 'Three gates: a stated Caesar shift, a stated XOR pad, and a combination of those two operations. Vigenère and Al-Kindi teach beside the gates.',
     topics: ['caesar', 'vigenere', 'freqan', 'otp'],
   },
   {
     id: 'grove',
-    name: 'Hash Forest',
+    name: L.fountain,
     open: true,
     summary: 'Alice changes an input. Eve says what a digest reveals. A hash is not encryption, and hashing a short secret does not hide it from guessing.',
     topics: ['hash'],
   },
   {
     id: 'bridge',
-    name: 'Key Exchange Bridge',
+    name: L.bridge,
     open: true,
     summary: 'Alice and Bob exchange public values. Eve watches. Mallory appears only after the active-attack simulation is turned on, with an authentication comparison beside it.',
     topics: ['dh'],
   },
   {
     id: 'garden',
-    name: 'Private Set Gardens',
+    name: L.gardens,
     open: true,
     summary: 'Alice and Bob keep separate sets. The PSI and PSU visualizations compute the result. Eve can comment as an outsider. Outsider secrecy is not the whole security definition.',
     topics: ['psi', 'psu'],
   },
   {
     id: 'ruins',
-    name: 'Cipher Ruins',
+    name: L.ruins,
     open: false,
-    summary: 'Not open as its own wing. The Cipher Catacombs is the playable dungeon for the shift, polyalphabetic, and frequency lessons.',
+    summary: 'Not open as its own wing. The Labyrinth of Hidden Flags is the playable dungeon for the shift, polyalphabetic, and frequency lessons.',
     topics: ['caesar', 'vigenere', 'freqan'],
   },
   {
     id: 'citadel',
-    name: 'Public-Key Citadel',
+    name: L.citadel,
     open: false,
     summary: 'Not open as a place. Ron Rivest, Adi Shamir, and Leonard Adleman will share one RSA workshop. RSA is a joint contribution. The RSA lesson is in the Library.',
     topics: ['rsa'],
   },
   {
     id: 'forge',
-    name: 'Symmetric Forge',
+    name: L.forge,
     open: false,
     summary: 'Not open as a place. Joan Daemen and Vincent Rijmen will introduce Rijndael and AES. The block-cipher and modes lessons are in the Library.',
     topics: ['blockcipher', 'modes'],
   },
   {
     id: 'peaks',
-    name: 'Secret-Sharing Peaks',
+    name: L.peaks,
     open: false,
     summary: 'Not open as a place. Adi Shamir will teach thresholds and reconstruction there, using the same identity as in the RSA workshop. The secret-sharing lesson is in the Library.',
     topics: ['ss'],
   },
   {
     id: 'market',
-    name: 'Oblivious Market',
+    name: L.bazaar,
     open: false,
     summary: 'Not open as a place. Michael Rabin will introduce oblivious transfer, and Alice and Bob will be sender and receiver. Different OT formulations exist. The OT lesson is in the Library.',
     topics: ['ot'],
   },
   {
     id: 'cavern',
-    name: 'Zero-Knowledge Cavern',
+    name: L.cavern,
     open: false,
     summary: 'Not open as a place. Peggy will be the prover and Victor the verifier. The zero-knowledge lesson is in the Library. Researcher portraits are not added until their attribution is checked.',
     topics: ['zk'],
   },
   {
     id: 'observatory',
-    name: 'MPC Observatory',
+    name: L.observatory,
     open: false,
     summary: 'Not open as a place. Andrew Yao will introduce the millionaires’ problem and two-party computation. Alice and Bob will supply the private inputs. The garbled-circuit lesson is in the Library.',
     topics: ['gc'],
@@ -284,7 +286,7 @@ export const CHARACTERS: Character[] = [
     id: 'carol',
     name: 'Carol',
     tag: 'CAROL',
-    role: 'Gardener. She holds one set in the Private Set Gardens and receives the PSI output.',
+    role: 'Gardener. She holds one set in the Gardens of Hidden Overlap and receives the PSI output.',
     specialties: ['private set intersection'],
     regions: ['garden'],
     questions: ['What do you learn from PSI?', 'What stays hidden from you?'],
@@ -296,7 +298,7 @@ export const CHARACTERS: Character[] = [
     id: 'dave',
     name: 'Dave',
     tag: 'DAVE',
-    role: 'Gardener. He holds the other set in the Private Set Gardens.',
+    role: 'Gardener. He holds the other set in the Gardens of Hidden Overlap.',
     specialties: ['private set intersection'],
     regions: ['garden'],
     questions: ['What do you put into PSI?', 'What does Carol learn about your garden?'],
@@ -569,9 +571,9 @@ export const APPEARANCES: Appearance[] = [
     y: 15.5,
     inside: false,
     guest: 'I am Alice. I keep my own inputs private, and I can still compute something together with Bob. The Library door is north of here. You can look around before you log in.',
-    signed: 'I am Alice. Ask me about private inputs, or walk west to Hash Forest, south to the bridge, and east to the gardens. Logging in lets me answer with Gemini.',
+    signed: 'I am Alice. Ask me about private inputs, or walk west to the Fountain of Hash, south to the bridge, and east to the gardens. Logging in lets me answer with Gemini.',
     questions: ['What is a private input?', 'How can two people compute together?', 'Which way are the quests?'],
-    context: 'Central Plaza welcome. No protocol secret is assigned here.',
+    context: 'The Crossroads of Secrets welcome. No protocol secret is assigned here.',
   },
   {
     id: 'bob-plaza',
@@ -580,10 +582,10 @@ export const APPEARANCES: Appearance[] = [
     x: 26.5,
     y: 13.5,
     inside: false,
-    guest: 'I am Bob. I can point you around. Hash Forest is west, the Key Exchange Bridge is south, and the Private Set Gardens are east. I do not see another person’s private inputs.',
+    guest: 'I am Bob. I can point you around. The Fountain of Hash is west, the Bridge of Shared Secrets is south, and the Gardens of Hidden Overlap are east. I do not see another person’s private inputs.',
     signed: 'I am Bob. I can compare what each participant is allowed to know once you are in a quest. The three lessons still open from the Library.',
     questions: ['How do I reach the three quests?', 'What is the difference between your view and Alice’s?'],
-    context: 'Central Plaza navigation. No protocol secret is assigned here.',
+    context: 'The Crossroads of Secrets navigation. No protocol secret is assigned here.',
   },
   {
     id: 'shannon',
@@ -595,7 +597,7 @@ export const APPEARANCES: Appearance[] = [
     guest: `${notice} Each library area is a building outside, and each one is drawn differently. Information theory asks what a message can reveal. Opening a visualization needs an account so the progress can be saved.`,
     signed: `${notice} Ask about what a message can reveal, or open Meet the cryptographers. The five buildings outside are the library.`,
     questions: ['What can a message reveal?', 'Which building should I open first?'],
-    context: 'Library Sanctuary. The five grounds buildings are the library areas. Teach information and secrecy from the listed papers and point to those rooms.',
+    context: 'The Library of Arcane Ciphers. The five grounds buildings are the library areas. Teach information and secrecy from the listed papers and point to those rooms.',
   },
   {
     id: 'alice-grove',
@@ -605,10 +607,10 @@ export const APPEARANCES: Appearance[] = [
     y: 12.5,
     inside: false,
     topic: 'hash',
-    guest: 'I am Alice in Hash Forest. A hash is not encryption. If my input changes, the digest changes. Hashing a short secret does not stop someone from guessing it. The lesson is in the Library.',
+    guest: 'I am Alice in the Fountain of Hash. A hash is not encryption. If my input changes, the digest changes. Hashing a short secret does not stop someone from guessing it. The lesson is in the Library.',
     signed: 'I am Alice. I can show the input assigned to me and the digest. Open the hash lesson, then mark it learned to finish this quest.',
     questions: ['Why is a hash not encryption?', 'What happens when the input changes?', 'Does hashing a short secret hide it?'],
-    context: 'Hash Forest. Alice has one assigned input and its digest.',
+    context: 'The Fountain of Hash. Alice has one assigned input and its digest.',
   },
   {
     id: 'eve-grove',
@@ -621,7 +623,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Eve. I see the digest, not Alice’s input. The digest alone does not name that input. If the input is short and guessable, I can test guesses. I do not change her message.',
     signed: 'I am Eve, still only an observer. Ask what a digest can reveal. I do not edit Alice’s input.',
     questions: ['What can you learn from a digest?', 'Can you change Alice’s input?', 'When is guessing the input easy?'],
-    context: 'Hash Forest, passive. Eve sees only the digest.',
+    context: 'The Fountain of Hash, passive. Eve sees only the digest.',
   },
   {
     id: 'alice-bridge',
@@ -634,7 +636,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Alice. Bob and I send public values across the bridge. Eve can see those values. She does not change them unless you leave this passive exchange.',
     signed: 'I am Alice. In the passive exchange I know my exponent and the public values. Mallory is absent until you activate the attack simulation.',
     questions: ['What do you send?', 'What do you keep private?', 'What changes if a public value is substituted?'],
-    context: 'Key Exchange Bridge. Passive unless the attack simulation is selected.',
+    context: 'The Bridge of Shared Secrets. Passive unless the attack simulation is selected.',
   },
   {
     id: 'bob-bridge',
@@ -647,7 +649,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Bob. I send my public value and I see Alice’s. I do not see her exponent. Eve is watching, and she is not editing the messages.',
     signed: 'I am Bob. Ask what I can know from my exponent and the messages I see. The lesson is the Diffie–Hellman visualization.',
     questions: ['Which value do you send?', 'Can you see Alice’s exponent?'],
-    context: 'Key Exchange Bridge. Bob knows his own exponent and the messages he sees.',
+    context: 'The Bridge of Shared Secrets. Bob knows his own exponent and the messages he sees.',
   },
   {
     id: 'eve-bridge',
@@ -660,7 +662,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Eve. I see the public values on the bridge. I do not see the exponents, and I do not replace a message. Mallory is the one who tampers, and only in the attack simulation.',
     signed: 'I am Eve. This is the passive view. I can say what the public values reveal and what they do not. I still do not edit them.',
     questions: ['What can you see on the bridge?', 'Can you compute the shared key from what you see?', 'How is Mallory different?'],
-    context: 'Key Exchange Bridge, passive eavesdropper.',
+    context: 'The Bridge of Shared Secrets, passive eavesdropper.',
   },
   {
     id: 'mallory-bridge',
@@ -673,7 +675,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Mallory. I am not part of the passive exchange. I substitute a public value only after you activate the attack simulation. Eve cannot do that.',
     signed: 'I am Mallory. Activate the attack simulation before asking me to substitute a message. The panel beside that simulation explains authentication.',
     questions: ['What did you substitute?', 'How is this different from Eve?', 'What does authentication change?'],
-    context: 'Key Exchange Bridge. Mallory is idle until the attack simulation is selected.',
+    context: 'The Bridge of Shared Secrets. Mallory is idle until the attack simulation is selected.',
   },
   {
     id: 'alice-garden',
@@ -686,7 +688,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Alice. This garden is my set. Bob’s garden is his set. The PSI and PSU visualizations do the computation. Hiding both sets from a passerby is not the whole security definition.',
     signed: 'I am Alice. I know my set and, at the end of the demo, the intersection the lesson computes. I do not know Bob’s other items. Open the PSI lesson to see the calculation.',
     questions: ['What is in your garden?', 'What does the intersection tell you?', 'What do you not learn about Bob?'],
-    context: 'Private Set Gardens. Alice knows her set. The PSI demo is the computation.',
+    context: 'The Gardens of Hidden Overlap. Alice knows her set. The PSI demo is the computation.',
   },
   {
     id: 'bob-garden',
@@ -699,7 +701,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Bob. My garden is a different set from Alice’s. The lesson compares them. I am not shown her whole set.',
     signed: 'I am Bob. Ask what my set and the demo’s intersection let me know. Alice’s other items are not mine to see.',
     questions: ['What is in your garden?', 'What does Alice still keep private?'],
-    context: 'Private Set Gardens. Bob knows his set. The PSI demo is the computation.',
+    context: 'The Gardens of Hidden Overlap. Bob knows his set. The PSI demo is the computation.',
   },
   {
     id: 'eve-garden',
@@ -712,7 +714,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Eve, optional here. I can see that Alice and Bob compare gardens. I do not receive either set. Their privacy from each other is part of the definition, not only privacy from me.',
     signed: 'I am Eve. I can describe an outsider’s view. Do not treat my ignorance as the definition of PSI security.',
     questions: ['What can an outsider see?', 'Does hiding the sets from you define PSI?'],
-    context: 'Private Set Gardens, optional observer. Eve does not receive either set.',
+    context: 'The Gardens of Hidden Overlap, optional observer. Eve does not receive either set.',
   },
   {
     id: 'trent-grounds',
@@ -722,9 +724,9 @@ export const APPEARANCES: Appearance[] = [
     y: 11.5,
     inside: false,
     guest: 'I am Trent. In protocol stories I am the trusted third party, the one both sides agree to rely on. Here I only vouch for directions: the winding path north ends at the Sanctuary, and every branch ends at a library building. You can look around before you log in.',
-    signed: 'I am Trent. The Sanctuary to the north leads to the Catacombs and the Key Exchange Bridge. Ask me when a protocol needs a trusted party, and when it does not.',
+    signed: 'I am Trent. The Sanctuary to the north leads to the Catacombs and the Bridge of Shared Secrets. Ask me when a protocol needs a trusted party, and when it does not.',
     questions: ['When does a protocol need a trusted party?', 'Where should I go first?'],
-    context: 'Library grounds. Trent is a guide here and holds no protocol secret. Not every protocol needs a trusted third party.',
+    context: 'The Crossroads of Secrets. Trent is a guide here and holds no protocol secret. Not every protocol needs a trusted third party.',
   },
   {
     id: 'shamir-grounds',
@@ -734,10 +736,10 @@ export const APPEARANCES: Appearance[] = [
     y: 12.5,
     inside: false,
     topic: 'ss',
-    guest: 'The cipher court beside this path holds the secret-sharing lesson from the 1979 paper How to Share a Secret: split a secret into shares so that any threshold of them rebuilds it, and fewer reveal nothing about it.',
-    signed: 'Ask what a threshold means, or open the secret-sharing visualization in the cipher court.',
+    guest: 'The Ruins of Shifting Letters beside this path holds the secret-sharing lesson from the 1979 paper How to Share a Secret: split a secret into shares so that any threshold of them rebuilds it, and fewer reveal nothing about it.',
+    signed: 'Ask what a threshold means, or open the secret-sharing visualization in the Ruins of Shifting Letters.',
     questions: ['What is a threshold?', 'Why do fewer shares reveal nothing?'],
-    context: 'Library grounds, beside the cipher court. Secret-sharing context from the 1979 paper. No protocol secret is assigned here.',
+    context: 'The Crossroads of Secrets, beside the Ruins of Shifting Letters. Secret-sharing context from the 1979 paper. No protocol secret is assigned here.',
   },
   {
     id: 'peggy-sanctuary',
@@ -750,7 +752,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Peggy, the prover. I can convince Victor that I know a secret without showing it to him. The zero-knowledge lesson plays rounds of that proof.',
     signed: 'I am Peggy. Ask what a prover must be able to do, or open the zero-knowledge lesson.',
     questions: ['What must a prover be able to do?', 'What does zero knowledge hide?'],
-    context: 'Library Sanctuary. Peggy introduces zero-knowledge proofs in general. No proof example or secret is assigned here.',
+    context: 'The Library of Arcane Ciphers. Peggy introduces zero-knowledge proofs in general. No proof example or secret is assigned here.',
   },
   {
     id: 'victor-sanctuary',
@@ -763,7 +765,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Victor, the verifier. I send Peggy random challenges. Each one she answers makes cheating less likely, and I end up convinced without learning her secret.',
     signed: 'I am Victor. Ask what a verifier checks, and what a verifier never learns.',
     questions: ['What does the verifier check?', 'What does the verifier not learn?'],
-    context: 'Library Sanctuary. Victor introduces verification in general. No proof example is assigned here.',
+    context: 'The Library of Arcane Ciphers. Victor introduces verification in general. No proof example is assigned here.',
   },
   {
     id: 'faythe-forest',
@@ -776,7 +778,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Faythe, a courier. I seal each parcel by adding up its letters, and I check the seal when it arrives. Oscar says my seal is weak. The old shrine gate ahead will test that claim.',
     signed: 'I am Faythe. Ask what a seal proves, or why a simple checksum is not a real hash.',
     questions: ['What does a seal prove?', 'Why is a simple checksum not enough?'],
-    context: 'Hash Forest. Faythe checks parcels with a toy checksum. The parcel LEAF has seal 24.',
+    context: 'The Fountain of Hash. Faythe checks parcels with a toy checksum. The parcel LEAF has seal 24.',
   },
   {
     id: 'oscar-forest',
@@ -789,7 +791,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Oscar. Faythe adds letters up and calls it a seal. Find another word with the same seal as LEAF and the shrine gate opens. With SHA-256 you would not get that lucky.',
     signed: 'I am Oscar. Ask how a forger thinks, or why a real hash resists this trick.',
     questions: ['How would you forge the seal?', 'Could you do that against SHA-256?'],
-    context: 'Hash Forest, beside the shrine gate. Oscar is an opponent who forges against the toy seal only.',
+    context: 'The Fountain of Hash, beside the shrine gate. Oscar is an opponent who forges against the toy seal only.',
   },
   {
     id: 'carol-gardens',
@@ -802,7 +804,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Carol. This is my garden. Dave keeps the one across the path. We want to know which plants we share without showing each other the rest.',
     signed: 'I am Carol. Ask what I learn when PSI finishes, and what stays hidden from me.',
     questions: ['What do you learn from PSI?', 'What stays hidden from you?'],
-    context: 'Private Set Gardens. Carol holds her own garden set and receives the PSI output.',
+    context: 'The Gardens of Hidden Overlap. Carol holds her own garden set and receives the PSI output.',
   },
   {
     id: 'dave-gardens',
@@ -815,7 +817,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Dave. My plants stay in my garden. When Carol and I run PSI, she learns only the ones we both grow.',
     signed: 'I am Dave. Ask what I put into PSI, or what Carol learns about my garden.',
     questions: ['What do you put into PSI?', 'What does Carol learn about your garden?'],
-    context: 'Private Set Gardens. Dave holds his own garden set and does not receive the output.',
+    context: 'The Gardens of Hidden Overlap. Dave holds his own garden set and does not receive the output.',
   },
   {
     id: 'caesar-catacombs',
@@ -828,7 +830,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'The gate states its shift. Suetonius describes a three-place letter shift. That description is not a claim that every substitution cipher belongs to Caesar.',
     signed: 'The ciphertext and the shift are written on the gate. Ask for a hint, or open the Caesar visualization.',
     questions: ['What does a fixed shift hide?', 'How do I undo a forward shift?'],
-    context: 'Cipher Catacombs shift gate. The ciphertext and the forward shift are public. Do not invent a different shift.',
+    context: 'The Labyrinth of Hidden Flags shift gate. The ciphertext and the forward shift are public. Do not invent a different shift.',
   },
   {
     id: 'vigenere-catacombs',
@@ -841,7 +843,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'A keyword can pick a different shift for each letter. The repeating-keyword tableau is a later name. These gates do not ask for a hidden keyword.',
     signed: 'Ask what a keyword changes. The gates in this dungeon state a single shift when they use one.',
     questions: ['What does a keyword change in a polyalphabetic cipher?'],
-    context: 'Cipher Catacombs hall. Teach the polyalphabetic idea and the 1586 treatise. No keyword is assigned on these gates.',
+    context: 'The Labyrinth of Hidden Flags hall. Teach the polyalphabetic idea and the 1586 treatise. No keyword is assigned on these gates.',
   },
   {
     id: 'kindi-catacombs',
@@ -854,7 +856,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'Counting letters can expose a simple substitution when the language is known. This gate already states its shift.',
     signed: 'The frequency tool counts letters you type. It does not choose the answer for you.',
     questions: ['How can letter counts expose a simple substitution?'],
-    context: 'Cipher Catacombs. Teach frequency analysis from the edited treatise. The shift on this gate is already stated.',
+    context: 'The Labyrinth of Hidden Flags. Teach frequency analysis from the edited treatise. The shift on this gate is already stated.',
   },
   {
     id: 'eve-catacombs',
@@ -867,7 +869,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'I am Eve. I can see the public bytes on this gate. I do not change, inject, or replace them.',
     signed: 'I am Eve. Ask what an observer can see. I still do not edit the bytes.',
     questions: ['What can you see on this gate?', 'Can you change the bytes?'],
-    context: 'Cipher Catacombs byte gate. Eve sees the public ciphertext and does not alter it.',
+    context: 'The Labyrinth of Hidden Flags byte gate. Eve sees the public ciphertext and does not alter it.',
   },
   {
     id: 'daemen-catacombs',
@@ -880,7 +882,7 @@ export const APPEARANCES: Appearance[] = [
     guest: 'This last gate stacks two simple steps in a stated order: XOR first, then a shift. Block ciphers also repeat simple steps in a fixed order. AES, the standard in FIPS 197 built from Rijndael, runs rounds, and one step of each round XORs a round key into the data.',
     signed: 'Do the XOR first, then undo the shift. Ask why the order matters, or open the block-cipher visualization.',
     questions: ['Why does the order of steps matter?', 'What is a round in AES?'],
-    context: 'Cipher Catacombs combined gate. The order of operations is public and no secret is assigned here. AES rounds are context, not part of the gate.',
+    context: 'The Labyrinth of Hidden Flags combined gate. The order of operations is public and no secret is assigned here. AES rounds are context, not part of the gate.',
   },
 ];
 

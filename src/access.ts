@@ -1,32 +1,42 @@
 import { TOPIC_BY_ID, TOPICS } from './vis/registry.ts';
+import { L } from './world/locations.ts';
 
 /** Routes a guest can open without an account. Everything else in the app is a lesson or a library page. */
-const PUBLIC_ROUTES = new Set(['', 'top', 'world']);
+const PUBLIC_ROUTES = new Set(['', 'top', 'world', 'research']);
 
 const LIBRARY_ROUTES = new Set(['library', 'terms', 'classical', 'modern', 'lib-psi', 'lib-psu', 'bib', 'paths']);
 
 const LESSON_PREFIX = /^(lesson-|path-|tour-|def-|L-|cl-|mo-|psu-|psi-|pp-|ip-)/;
 
+/** Hash path without query string (`research?topic=hash` → `research`). */
+export function routeBase(route: string): string {
+  const cut = route.indexOf('?');
+  return cut === -1 ? route : route.slice(0, cut);
+}
+
 export function isRestricted(route: string, entry = false): boolean {
-  if (PUBLIC_ROUTES.has(route)) return false;
-  if (LIBRARY_ROUTES.has(route)) return true;
-  if (TOPIC_BY_ID[route]) return true;
+  const base = routeBase(route);
+  if (PUBLIC_ROUTES.has(base)) return false;
+  if (LIBRARY_ROUTES.has(base)) return true;
+  if (TOPIC_BY_ID[base]) return true;
   if (entry) return true;
-  return LESSON_PREFIX.test(route);
+  return LESSON_PREFIX.test(base);
 }
 
 export function accessReason(route: string): string {
-  const topic = TOPIC_BY_ID[route];
+  const base = routeBase(route);
+  const topic = TOPIC_BY_ID[base];
   if (topic) return `Log in to explore ${topic.title} and save your learning progress.`;
-  if (route.startsWith('lesson-')) return 'Log in to open this lesson and save your learning progress.';
-  if (route.startsWith('path-')) return 'Log in to open this learning path and save your learning progress.';
-  if (route.startsWith('tour-')) return 'Log in to start the tour and save your learning progress.';
-  if (route === 'terms' || route.startsWith('L-') || route.startsWith('def-')) {
+  if (base.startsWith('lesson-')) return 'Log in to open this lesson and save your learning progress.';
+  if (base.startsWith('path-')) return 'Log in to open this learning path and save your learning progress.';
+  if (base.startsWith('tour-')) return 'Log in to start the tour and save your learning progress.';
+  if (base === 'research') return 'Log in to start research at the Research Desk. You can read the introduction without an account.';
+  if (base === 'terms' || base.startsWith('L-') || base.startsWith('def-')) {
     return 'Log in to open the dictionary and save your learning progress.';
   }
-  if (route === 'paths') return 'Log in to open the learning paths and save your learning progress.';
-  if (route === 'bib') return 'Log in to open the bibliography and save your learning progress.';
-  if (route === 'library') return 'Log in to open the library and save your learning progress.';
+  if (base === 'paths') return 'Log in to open the learning paths and save your learning progress.';
+  if (base === 'bib') return 'Log in to open the bibliography and save your learning progress.';
+  if (base === 'library') return 'Log in to open the library and save your learning progress.';
   return 'Log in to open this part of the library and save your learning progress.';
 }
 
@@ -97,7 +107,9 @@ export interface LibrarySection {
 /** The library pages that already exist outside the topic grid. */
 export const LIBRARY_SECTIONS: LibrarySection[] = [
   { route: 'library', title: 'All visualizations', blurb: 'Search, filters, playback, and pseudocode for every protocol.' },
-  { route: 'paths', title: 'Learning paths and quizzes', blurb: 'Lessons in order, with a CTF flag at the end of each path.' },
+  { route: 'research', title: 'Research Desk', blurb: 'Gather published sources for hashing topics and selected bibliography papers.' },
+  { route: 'paths', title: 'Learning paths and quizzes', blurb: 'Lessons in order, with a CTF flag at the end of each tree path.' },
+  { route: 'path-verify-download', title: 'Verify a software download', blurb: 'Practical Future of Work path: digests, research, toy-seal lab, and a workplace download check.' },
   { route: 'terms', title: 'Dictionary', blurb: 'Definitions, explanations, and the practice questions on each entry.' },
   { route: 'classical', title: 'Classical cryptography', blurb: 'The classical cipher notes that sit beside the visualizations.' },
   { route: 'modern', title: 'Modern cryptography', blurb: 'Hashes, block ciphers, RSA, and elliptic curves in long form.' },
@@ -107,9 +119,9 @@ export const LIBRARY_SECTIONS: LibrarySection[] = [
 ];
 
 export const QUESTS = [
-  { id: 'grove', topic: 'hash', title: 'Hash Forest' },
-  { id: 'bridge', topic: 'dh', title: 'Key Exchange Bridge' },
-  { id: 'garden', topic: 'psi', title: 'Private Set Gardens' },
+  { id: 'grove', topic: 'hash', title: L.fountain },
+  { id: 'bridge', topic: 'dh', title: L.bridge },
+  { id: 'garden', topic: 'psi', title: L.gardens },
 ] as const;
 
 export type QuestTopic = (typeof QUESTS)[number]['topic'];

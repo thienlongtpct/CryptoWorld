@@ -175,11 +175,22 @@ export function Talk({ spot, user, onClose, onOpen, onDirectory }: {
   );
 }
 
+type TutorSource = { n: number; title: string; publisher: string; url: string };
+
+function isTutorSource(value: unknown): value is TutorSource {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.n === 'number' && typeof v.title === 'string' && typeof v.publisher === 'string'
+    && typeof v.url === 'string' && /^https?:\/\//.test(v.url);
+}
+
 function Ask({ character, regionId, questions }: { character: Character; regionId: string; questions: string[] }) {
   const [mode, setMode] = useState<AskMode>('explain');
   const [attack, setAttack] = useState(false);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const [sources, setSources] = useState<TutorSource[]>([]);
+  const [research, setResearch] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const bridge = regionId === 'bridge';
@@ -195,6 +206,8 @@ function Ask({ character, regionId, questions }: { character: Character; regionI
     setBusy(true);
     setError('');
     setAnswer('');
+    setSources([]);
+    setResearch(null);
     try {
       const res = await fetch('/api/npc', {
         method: 'POST',
@@ -208,6 +221,8 @@ function Ask({ character, regionId, questions }: { character: Character; regionI
         return;
       }
       setAnswer(typeof data.answer === 'string' ? data.answer : '');
+      setSources(Array.isArray(data.sources) ? data.sources.filter(isTutorSource) : []);
+      setResearch(typeof data.research === 'string' && /^research\?topic=[a-z0-9-]+$/.test(data.research) ? data.research : null);
     } catch {
       setError('The account server could not be reached.');
     } finally {
@@ -253,6 +268,23 @@ function Ask({ character, regionId, questions }: { character: Character; regionI
                 {error && <p className="cw-attack" role="alert">{error}</p>}
                 {answer && <p><b>{question}</b></p>}
                 {answer && <p>{answer}</p>}
+                {answer && sources.length > 0 && (
+                  <div className="cw-sources">
+                    <p className="cw-caption">Sources you gathered at the Research Desk (found by TinyFish automation, not independently verified):</p>
+                    <ol>
+                      {sources.map(source => (
+                        <li key={source.n} value={source.n}>
+                          <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> · {source.publisher}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {answer && research && (
+                  <p className="cw-caption">
+                    Want {character.name} to cite real sources? <a href={`#${research}`}>Gather some at the Research Desk</a>, then ask again.
+                  </p>
+                )}
               </div>
             )}
             <div className="cw-input">
