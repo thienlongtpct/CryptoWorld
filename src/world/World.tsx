@@ -106,6 +106,8 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   const [near, setNear] = useState<Spot | null>(null);
   const [talk, setTalk] = useState<Spot | null>(null);
   const [challengeId, setChallengeId] = useState('');
+  const challengeRef = useRef('');
+  challengeRef.current = challengeId;
   const [drafts, setDrafts] = useState(loadDrafts);
   const [listOpen, setListOpen] = useState(false);
   const [journal, setJournal] = useState(false);
@@ -300,6 +302,8 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
     const gate = current.spots.find(spot => spot.challengeId === id);
     const dest = gate?.to && canEnter(gate.to, userRef.current, overlay) ? roomOf(gate.to) : null;
     window.setTimeout(() => {
+      // The learner may have opened another gate (Catalog, a mission link) during the pause.
+      if (challengeRef.current !== id) return;
       saveResume('');
       setChallengeId('');
       if (!dest) {

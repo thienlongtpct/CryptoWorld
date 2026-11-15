@@ -35,7 +35,7 @@ export function Home() {
     <section className="vhome">
       <div className="vhome-hero">
         {/* <SunhacksMark variant="banner" /> */}
-        <div className="vhome-logo" aria-label="VisuCrypto">VISU<span>CRYPTO</span></div>
+        <div className="vhome-logo" aria-label="CryptoWorld">CRYPTO<span>WORLD</span></div>
         <p className="vhome-tag">The Library. Search the visualizations, then open the dictionary, paths, quizzes, and references.</p>
         <div className="vhome-actions">
           <a className="btn-l outline" href="#world">Return to world</a>

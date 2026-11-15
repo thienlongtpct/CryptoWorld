@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-VisuCrypto is a sunhacks 9.0 project: VisuAlgo-style animated cryptography visualizations (classical ciphers → OT/OPRF/OKVS/VOLE/PSI/PSU), a dictionary, paper libraries, learning paths, and a pixel-art "Crypto Dungeon" world with CTF challenges and Gemini-backed NPC tutors. React 18 + TypeScript, bundled by Vite 4 into **one self-contained `dist/index.html`**, plus a small Node account API. All crypto uses toy parameters on purpose.
+CryptoWorld is a sunhacks 9.0 project: VisuAlgo-style animated cryptography visualizations (classical ciphers → OT/OPRF/OKVS/VOLE/PSI/PSU), a dictionary, paper libraries, learning paths, and a pixel-art "Crypto Dungeon" world with CTF challenges and Gemini-backed NPC tutors. React 18 + TypeScript, bundled by Vite 4 into **one self-contained `dist/index.html`**, plus a small Node account API. All crypto uses toy parameters on purpose.
 
 README.md is detailed and covers routing, data files, and recipes for adding visualizations, terms, and papers. Read it before larger changes.
 
@@ -17,6 +17,7 @@ npm run typecheck    # tsc --noEmit
 npm test             # node --test over test/**/*.test.ts and test/**/*.test.mjs
 npm run ci           # typecheck + test + build + scripts/check-dist.mjs (same as the CI check job)
 npm run build        # tsc --noEmit && vite build -> dist/index.html
+npm run e2e          # build + Playwright demo walk (e2e/demo.spec.mjs) against e2e/server.mjs with fake sponsors
 ```
 
 Run a single test file:

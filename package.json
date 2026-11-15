@@ -1,5 +1,5 @@
 {
-  "name": "visucrypto",
+  "name": "cryptoworld",
   "private": true,
   "version": "2.0.0",
   "type": "module",
@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test \"test/**/*.test.ts\" \"test/**/*.test.mjs\"",
     "ci": "npm run typecheck && npm test && npm run build && node scripts/check-dist.mjs",
+    "e2e": "npm run build && playwright test",
+    "e2e:live": "playwright test",
     "artifact": "npm run build && node scripts/make-artifact.mjs"
   },
   "dependencies": {
@@ -22,6 +24,7 @@
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.2.1",

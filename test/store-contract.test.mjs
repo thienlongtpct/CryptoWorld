@@ -1,6 +1,6 @@
 // One behaviour suite for every account store. The memory store always runs. The TigerData
 // (Postgres) store runs when TEST_TIGER_DATABASE_URL points at a database you can wipe:
-//   TEST_TIGER_DATABASE_URL=postgres://localhost:5432/visucrypto_test npm test
+//   TEST_TIGER_DATABASE_URL=postgres://localhost:5432/cryptoworld_test npm test
 import assert from 'node:assert/strict';
 import { after, describe, test } from 'node:test';
 import { createMemoryStore } from '../server/store.mjs';

@@ -71,7 +71,7 @@ export function App() {
       : path ? PATH_BY_ID[path]?.title ?? 'Learning path'
       : entry ? entry.headword
       : PAGE_TITLES[page];
-    document.title = (label ? label + ' · ' : '') + 'VisuCrypto · sunhacks 9.0';
+    document.title = (label ? label + ' · ' : '') + 'CryptoWorld · sunhacks 9.0';
   }, [Topic, base, entry, page, lesson, path, touring, checking, showWorld]);
 
   // New page: start at the top. In-page anchor: scroll to it once rendered.

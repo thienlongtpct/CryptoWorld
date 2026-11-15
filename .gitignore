@@ -11,3 +11,5 @@ infra/node_modules/
 infra/cdk.out/
 infra/cdk.context.json
 infra/outputs.json
+test-results/
+playwright-report/

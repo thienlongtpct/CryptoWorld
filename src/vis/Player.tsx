@@ -118,7 +118,7 @@ export function VisPage({ topicId, code, frames, stage, actions = [], autoplay =
       )}
       <header className="vis-top">
         <div className="vis-brand">
-          <a className="vis-logo" href="#world" aria-label="Return to Crypto Dungeon">VISU<span>CRYPTO</span></a>
+          <a className="vis-logo" href="#world" aria-label="Return to Crypto Dungeon">CRYPTO<span>WORLD</span></a>
           <SunhacksMark tone="dark" />
         </div>
         {!tour && (
