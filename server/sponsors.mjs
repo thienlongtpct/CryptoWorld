@@ -1,8 +1,8 @@
 // Server-side sponsor configuration. Secrets stay off the Vite client.
 // .env.example values are sentinels: leave them unchanged and the feature stays off.
 
-export const PLACEHOLDER_TINYFISH = 'sk-tinyfish-ax6dY9EleIaxUHC9iK_uhIXuujAJifPc';
-export const PLACEHOLDER_MARITIME = 'mk_ij3xDtOAKgHmErrC4qS8WraWgEoo9v6jvDpnKDQ4ZCw';
+export const PLACEHOLDER_TINYFISH = 'sk-tinyfish-REPLACE_ME';
+export const PLACEHOLDER_MARITIME = 'mk_REPLACE_ME';
 
 /** Return a usable secret, or '' when missing / still the example placeholder. */
 export function resolveSecret(value, placeholder) {

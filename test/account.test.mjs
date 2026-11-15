@@ -307,7 +307,17 @@ test('the local server registers a learner over HTTP', { timeout: 30_000 }, asyn
   const dir = mkdtempSync(join(tmpdir(), 'cryptoworld-'));
   const proc = spawn(process.execPath, ['--experimental-strip-types', 'server/index.mjs'], {
     cwd: root,
-    env: { ...process.env, PORT: '0', ACCOUNTS_PATH: join(dir, 'accounts.json') },
+    // Empty values win over a developer's .env (index.mjs only fills unset variables),
+    // so the sponsors stay off and the store stays on the temp JSON file.
+    env: {
+      ...process.env,
+      PORT: '0',
+      ACCOUNTS_PATH: join(dir, 'accounts.json'),
+      TINYFISH_API_KEY: '',
+      MARITIME_API_KEY: '',
+      TIGER_DATABASE_URL: '',
+      SPONSOR_SECRET_ARN: '',
+    },
   });
   let log = '';
   try {

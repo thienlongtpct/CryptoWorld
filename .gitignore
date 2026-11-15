@@ -13,3 +13,7 @@ infra/cdk.context.json
 infra/outputs.json
 test-results/
 playwright-report/
+
+# Devpost screenshots and gallery (large images, regenerated as needed)
+devpost-screens/
+devpost-gallery/

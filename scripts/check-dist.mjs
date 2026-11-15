@@ -13,9 +13,11 @@ if (!/<script[\s>]/.test(html)) problems.push('dist/index.html has no inlined sc
 if (bytes < 20_000) problems.push(`dist/index.html is only ${bytes} bytes`);
 if (bytes > 5_000_000) problems.push(`dist/index.html is ${bytes} bytes, over the 5 MB ceiling`);
 // Secrets and .env.example sentinels must never ship in the single-file page.
+// Real-looking TinyFish and Maritime keys are matched by shape, so no key value lives in this file.
+for (const [label, shape] of [['a TinyFish key', /sk-tinyfish-[A-Za-z0-9_-]{20,}/], ['a Maritime key', /\bmk_[A-Za-z0-9_-]{30,}/]]) {
+  if (shape.test(html)) problems.push(`dist/index.html must not contain ${label}`);
+}
 for (const needle of [
-  'sk-tinyfish-ax6dY9EleIaxUHC9iK_uhIXuujAJifPc',
-  'mk_ij3xDtOAKgHmErrC4qS8WraWgEoo9v6jvDpnKDQ4ZCw',
   'GEMINI_API_KEY=',
   'TINYFISH_API_KEY=',
   'MARITIME_API_KEY=',
