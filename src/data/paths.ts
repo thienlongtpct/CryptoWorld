@@ -1,22 +1,55 @@
 import catalog from './catalog.json';
 import { TOPIC_BY_ID } from '../vis/registry';
+import { researchHref } from './research';
 
-export type StepKind = 'lesson' | 'topic';
+export type StepKind = 'lesson' | 'topic' | 'assessment' | 'research' | 'lab' | 'challenge' | 'scenario' | 'summary';
 export interface Step { id: string; kind: StepKind }
 export interface Lesson { id: string; title: string; blurb: string }
-export interface PathDef { id: string; title: string; blurb: string; color: string; steps: Step[] }
+export interface PathDef {
+  id: string;
+  title: string;
+  blurb: string;
+  color: string;
+  kind?: 'tree' | 'practical';
+  steps: Step[];
+}
 
 export const LESSONS = catalog.lessons as Lesson[];
 export const PATHS = catalog.paths as PathDef[];
+export const TREE_PATHS = PATHS.filter(path => path.kind !== 'practical');
+export const PRACTICAL_PATHS = PATHS.filter(path => path.kind === 'practical');
 export const LESSON_BY_ID: Record<string, Lesson> = Object.fromEntries(LESSONS.map(l => [l.id, l]));
 export const PATH_BY_ID: Record<string, PathDef> = Object.fromEntries(PATHS.map(p => [p.id, p]));
 
+const PRACTICAL_TITLES: Record<string, string> = {
+  'vd-assess-1': 'Initial assessment',
+  'vd-research': 'Research Desk — hashing sources',
+  'vd-lab': 'Maritime toy-seal experiment',
+  seal: 'Forged seal challenge',
+  'vd-workplace': 'Workplace download check',
+  'vd-skills': 'Skills summary',
+};
+
 export function stepTitle(step: Step): string {
-  return step.kind === 'lesson' ? LESSON_BY_ID[step.id]?.title ?? step.id : TOPIC_BY_ID[step.id]?.title ?? step.id;
+  if (step.kind === 'lesson') return LESSON_BY_ID[step.id]?.title ?? step.id;
+  if (step.kind === 'topic') return TOPIC_BY_ID[step.id]?.title ?? step.id;
+  return PRACTICAL_TITLES[step.id] ?? step.id;
 }
 
 export function stepHref(step: Step): string {
-  return step.kind === 'lesson' ? `#lesson-${step.id}` : `#${step.id}`;
+  if (step.kind === 'lesson') return `#lesson-${step.id}`;
+  if (step.kind === 'topic') return `#${step.id}`;
+  if (step.kind === 'research') {
+    return `#${researchHref({
+      topic: 'hash',
+      goal: 'Explain what SHA-256 guarantees when checking a published software digest.',
+    })}`;
+  }
+  if (step.kind === 'lab' || step.kind === 'challenge') return '#world';
+  if (step.kind === 'assessment' || step.kind === 'scenario' || step.kind === 'summary') {
+    return `#path-verify-download`;
+  }
+  return `#${step.id}`;
 }
 
 /** One learning tree. Branches share the foundation lessons instead of repeating them. */

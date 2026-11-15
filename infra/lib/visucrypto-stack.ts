@@ -4,6 +4,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
@@ -12,8 +13,22 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { execSync } from 'child_process';
 
 const repoRoot = path.join(__dirname, '../..');
+
+/** Same sentinel rule as server/sponsors.mjs — example .env values stay off Lambda. */
+function liveSecret(value: string | undefined, placeholder: string) {
+  const key = (value || '').trim();
+  return key && key !== placeholder ? key : '';
+}
+
+const SDK_INSTALL =
+  'npm install --omit=dev --no-package-lock --prefix . '
+  + '@aws-sdk/client-dynamodb@3.1169.0 @aws-sdk/lib-dynamodb@3.1169.0 '
+  + '@aws-sdk/client-sqs@3.1169.0 @aws-sdk/client-secrets-manager@3.1169.0 pg@8.23.1';
 
 function stageApi(outputDir: string) {
   fs.mkdirSync(path.join(outputDir, 'server'), { recursive: true });
@@ -32,12 +47,60 @@ function stageApi(outputDir: string) {
   fs.copyFileSync(path.join(repoRoot, 'src/characters/views.ts'), path.join(outputDir, 'src/characters/views.ts'));
   fs.copyFileSync(path.join(repoRoot, 'src/lib/crypto.ts'), path.join(outputDir, 'src/lib/crypto.ts'));
   fs.copyFileSync(path.join(repoRoot, 'src/dungeon/challenges.ts'), path.join(outputDir, 'src/dungeon/challenges.ts'));
+  // Lambda needs DynamoDB + SQS + Secrets Manager clients and pg (TigerData) in the asset.
+  execSync(SDK_INSTALL, { cwd: outputDir, stdio: 'inherit' });
 }
+
+const apiBundleCommand = [
+  'bash', '-c',
+  [
+    'mkdir -p /asset-output/server /asset-output/src/data /asset-output/src/characters /asset-output/src/lib /asset-output/src/dungeon',
+    'cp package.json /asset-output/package.json',
+    'cp server/*.mjs /asset-output/server/',
+    'cp src/data/catalog.json src/data/entries.ts /asset-output/src/data/',
+    'cp src/characters/cast.ts src/characters/views.ts /asset-output/src/characters/',
+    'cp src/lib/crypto.ts /asset-output/src/lib/',
+    'cp src/dungeon/challenges.ts /asset-output/src/dungeon/',
+    'cd /asset-output && npm install --omit=dev --no-package-lock '
+      + '@aws-sdk/client-dynamodb@3.1169.0 @aws-sdk/lib-dynamodb@3.1169.0 '
+      + '@aws-sdk/client-sqs@3.1169.0 @aws-sdk/client-secrets-manager@3.1169.0 pg@8.23.1',
+  ].join(' && '),
+];
 
 function githubRepo(scope: Construct) {
   const fromContext = scope.node.tryGetContext('githubRepo');
   const repo = (typeof fromContext === 'string' && fromContext) || process.env.GITHUB_REPOSITORY || '';
   return /^[\w.-]+\/[\w.-]+$/.test(repo) ? repo : '';
+}
+
+/**
+ * Optional custom domain. CloudFront has no fixed IP, so DNS must point at the CloudFront
+ * hostname (CNAME, or ALIAS/ANAME/flattening at an apex), never at an A-record IP.
+ *   -c siteDomains=example.com,www.example.com
+ *   -c siteCertificateArn=arn:aws:acm:us-east-1:ACCOUNT:certificate/ID
+ * Env SITE_DOMAINS / SITE_CERTIFICATE_ARN are fallbacks. Empty → the default cloudfront.net host.
+ */
+function customDomain(scope: Construct) {
+  const read = (key: string, env: string) => {
+    const value = scope.node.tryGetContext(key);
+    return ((typeof value === 'string' ? value : '') || process.env[env] || '').trim();
+  };
+  const domains = read('siteDomains', 'SITE_DOMAINS')
+    .split(',').map(d => d.trim().toLowerCase().replace(/\.$/, '')).filter(Boolean);
+  const certificateArn = read('siteCertificateArn', 'SITE_CERTIFICATE_ARN');
+  if (!domains.length && !certificateArn) return undefined;
+  if (!domains.length || !certificateArn) {
+    throw new Error('siteDomains and siteCertificateArn must be set together (or both left empty).');
+  }
+  for (const d of domains) {
+    if (!/^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(d)) {
+      throw new Error(`siteDomains: "${d}" is not a valid hostname.`);
+    }
+  }
+  if (!/^arn:aws[\w-]*:acm:us-east-1:\d{12}:certificate\/[\w-]+$/.test(certificateArn)) {
+    throw new Error('siteCertificateArn must be an ACM certificate ARN in us-east-1 (CloudFront only reads certificates there).');
+  }
+  return { domains, certificateArn };
 }
 
 export class VisuCryptoStack extends cdk.Stack {
@@ -58,8 +121,56 @@ export class VisuCryptoStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    // Prefer Secrets Manager (SPONSOR_SECRET_ARN). Individual env keys are a fallback for
+    // existing Gemini settings / first-time bring-up. Placeholders never reach Lambda.
+    const sponsorSecretArn = (process.env.SPONSOR_SECRET_ARN || '').trim();
+    const tinyfishKey = sponsorSecretArn ? '' : liveSecret(
+      process.env.TINYFISH_API_KEY,
+      'sk-tinyfish-ax6dY9EleIaxUHC9iK_uhIXuujAJifPc',
+    );
+    const maritimeKey = sponsorSecretArn ? '' : liveSecret(
+      process.env.MARITIME_API_KEY,
+      'mk_ij3xDtOAKgHmErrC4qS8WraWgEoo9v6jvDpnKDQ4ZCw',
+    );
+    // TigerData (Tiger Cloud Postgres). Prefer TIGER_DATABASE_URL inside the sponsor secret;
+    // a plain env URL is a fallback. When neither is set the Lambdas use DynamoDB.
+    const tigerUrlEnv = (process.env.TIGER_DATABASE_URL || '').trim();
+    const tigerUrl = !sponsorSecretArn && /^postgres(ql)?:\/\/[^<>\s]+$/i.test(tigerUrlEnv) ? tigerUrlEnv : '';
+    // Preserve existing Gemini Lambda env when set; optional secret may also supply them.
+    const geminiKey = (process.env.GEMINI_API_KEY || '').trim();
+    const geminiModel = (process.env.GEMINI_MODEL || '').trim();
+
+    const labQueue = new sqs.Queue(this, 'LabRuns', {
+      visibilityTimeout: cdk.Duration.seconds(120),
+      retentionPeriod: cdk.Duration.days(1),
+    });
+
+    const apiCode = lambda.Code.fromAsset(repoRoot, {
+      bundling: {
+        image: lambda.Runtime.NODEJS_24_X.bundlingImage,
+        command: apiBundleCommand,
+        local: {
+          tryBundle(outputDir: string) {
+            stageApi(outputDir);
+            return true;
+          },
+        },
+      },
+    });
+
+    const sharedEnv: Record<string, string> = {
+      TABLE_NAME: accounts.tableName,
+      COOKIE_SECURE: '1',
+      ...(geminiKey ? { GEMINI_API_KEY: geminiKey } : {}),
+      ...(geminiModel ? { GEMINI_MODEL: geminiModel } : {}),
+      ...(sponsorSecretArn ? { SPONSOR_SECRET_ARN: sponsorSecretArn } : {}),
+      ...(tinyfishKey ? { TINYFISH_API_KEY: tinyfishKey } : {}),
+      ...(maritimeKey ? { MARITIME_API_KEY: maritimeKey } : {}),
+      ...(tigerUrl ? { TIGER_DATABASE_URL: tigerUrl } : {}),
+    };
+
     const api = new lambda.Function(this, 'AccountsApi', {
-      description: 'VisuCrypto registration, sessions, and learning progress.',
+      description: 'VisuCrypto registration, sessions, learning progress, research, and lab enqueue.',
       runtime: lambda.Runtime.NODEJS_24_X,
       architecture: lambda.Architecture.ARM_64,
       handler: 'server/lambda.handler',
@@ -67,28 +178,40 @@ export class VisuCryptoStack extends cdk.Stack {
       memorySize: 256,
       logGroup: apiLogs,
       environment: {
-        TABLE_NAME: accounts.tableName,
-        COOKIE_SECURE: '1',
-        ...(process.env.GEMINI_API_KEY ? { GEMINI_API_KEY: process.env.GEMINI_API_KEY } : {}),
-        ...(process.env.GEMINI_MODEL ? { GEMINI_MODEL: process.env.GEMINI_MODEL } : {}),
+        ...sharedEnv,
+        LAB_QUEUE_URL: labQueue.queueUrl,
       },
-      code: lambda.Code.fromAsset(repoRoot, {
-        bundling: {
-          image: lambda.Runtime.NODEJS_24_X.bundlingImage,
-          command: [
-            'bash', '-c',
-            'mkdir -p /asset-output/server /asset-output/src/data /asset-output/src/characters /asset-output/src/lib /asset-output/src/dungeon && cp package.json /asset-output/package.json && cp server/*.mjs /asset-output/server/ && cp src/data/catalog.json src/data/entries.ts /asset-output/src/data/ && cp src/characters/cast.ts src/characters/views.ts /asset-output/src/characters/ && cp src/lib/crypto.ts /asset-output/src/lib/ && cp src/dungeon/challenges.ts /asset-output/src/dungeon/',
-          ],
-          local: {
-            tryBundle(outputDir: string) {
-              stageApi(outputDir);
-              return true;
-            },
-          },
-        },
-      }),
+      code: apiCode,
     });
     accounts.grantReadWriteData(api);
+    labQueue.grantSendMessages(api);
+
+    const labWorkerLogs = new logs.LogGroup(this, 'LabWorkerLogs', {
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+    const labWorker = new lambda.Function(this, 'LabWorker', {
+      description: 'VisuCrypto Maritime lab runner (SQS).',
+      runtime: lambda.Runtime.NODEJS_24_X,
+      architecture: lambda.Architecture.ARM_64,
+      handler: 'server/lab-worker-lambda.handler',
+      timeout: cdk.Duration.seconds(90),
+      memorySize: 512,
+      logGroup: labWorkerLogs,
+      environment: sharedEnv,
+      code: apiCode,
+    });
+    accounts.grantReadWriteData(labWorker);
+    labWorker.addEventSource(new SqsEventSource(labQueue, { batchSize: 1 }));
+
+    if (sponsorSecretArn) {
+      const secretRead = new iam.PolicyStatement({
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [sponsorSecretArn],
+      });
+      api.addToRolePolicy(secretRead);
+      labWorker.addToRolePolicy(secretRead);
+    }
 
     const httpApi = new apigwv2.HttpApi(this, 'HttpApi', { apiName: 'visucrypto-accounts' });
     httpApi.addRoutes({
@@ -121,9 +244,16 @@ export class VisuCryptoStack extends cdk.Stack {
       },
     });
 
+    // Same CloudFront hostname for / and /api/* — Secure same-origin session cookies.
     const apiDomain = `${httpApi.apiId}.execute-api.${this.region}.amazonaws.com`;
+    const domain = customDomain(this);
     const distribution = new cloudfront.Distribution(this, 'SiteCdn', {
       comment: 'VisuCrypto',
+      ...(domain ? {
+        domainNames: domain.domains,
+        certificate: acm.Certificate.fromCertificateArn(this, 'SiteCertificate', domain.certificateArn),
+        minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+      } : {}),
       defaultRootObject: 'index.html',
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(site),
@@ -189,7 +319,19 @@ export class VisuCryptoStack extends cdk.Stack {
     }
 
     new cdk.CfnOutput(this, 'SiteUrl', { value: `https://${distribution.distributionDomainName}` });
-    new cdk.CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
+    new cdk.CfnOutput(this, 'DnsTarget', {
+      value: distribution.distributionDomainName,
+      description: 'Point CNAME (subdomains) or ALIAS/ANAME/flattened CNAME (apex) records here. Not an IP.',
+    });
+    if (domain) {
+      new cdk.CfnOutput(this, 'CustomDomains', { value: domain.domains.map(d => `https://${d}`).join(' ') });
+    }
+    new cdk.CfnOutput(this, 'DistributionId',{ value: distribution.distributionId });
     new cdk.CfnOutput(this, 'BucketName', { value: site.bucketName });
+    new cdk.CfnOutput(this, 'LabQueueUrl', { value: labQueue.queueUrl });
+    new cdk.CfnOutput(this, 'SponsorConfig', {
+      value: sponsorSecretArn ? 'secrets-manager' : (tinyfishKey || maritimeKey || geminiKey ? 'env' : 'none'),
+      description: 'How sponsor keys are supplied (never prints key material).',
+    });
   }
 }

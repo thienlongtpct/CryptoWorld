@@ -1,5 +1,11 @@
 import { createHandler } from './app.mjs';
 import { loadAllowed } from './allowed.mjs';
+import { createTinyFish } from './tinyfish.mjs';
+import { createMaritime } from './maritime.mjs';
+import { createLabQueueFromEnv } from './lab-queue.mjs';
+import { processLabJob } from './lab-worker.mjs';
+import { loadSponsorConfig } from './secrets.mjs';
+import { selectStore } from './store-select.mjs';
 
 /** Turn a Lambda result into an API Gateway HTTP API (payload 2.0) response. */
 export function apigwResponse(result) {
@@ -35,13 +41,24 @@ let handle;
 
 async function accountHandler() {
   if (!handle) {
-    const { createDynamoStore } = await import('./dynamo-store.mjs');
+    const cfg = await loadSponsorConfig();
+    const store = await selectStore(cfg, async () => {
+      const { createDynamoStore } = await import('./dynamo-store.mjs');
+      return createDynamoStore(process.env.TABLE_NAME);
+    });
+    const maritime = createMaritime({ apiKey: cfg.maritime });
+    const labQueue = await createLabQueueFromEnv({
+      processJob: jobId => processLabJob({ store, maritime, jobId }),
+    });
     handle = createHandler({
-      store: createDynamoStore(process.env.TABLE_NAME),
+      store,
       allowed: loadAllowed(),
       secureCookie: process.env.COOKIE_SECURE === '1',
-      gemini: process.env.GEMINI_API_KEY || '',
-      model: process.env.GEMINI_MODEL || '',
+      gemini: cfg.gemini,
+      model: cfg.model,
+      tinyfish: createTinyFish({ apiKey: cfg.tinyfish }),
+      maritime,
+      labQueue,
     });
   }
   return handle;

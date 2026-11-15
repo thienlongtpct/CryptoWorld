@@ -1,4 +1,5 @@
 // Hits the delivered site. Used at the end of the AWS deploy.
+// Prints readiness booleans only — never key material. Does not call paid providers.
 import { readFileSync } from 'node:fs';
 
 function siteUrl() {
@@ -33,6 +34,9 @@ await probe('site', async () => {
   const html = await res.text();
   if (!html.includes('id="root"')) throw new Error('the page has no #root');
   if (html.includes('/src/main.tsx')) throw new Error('the page still points at the dev entry');
+  for (const needle of ['sk-tinyfish-', 'mk_ij3xDtOAKgHmErrC4qS8WraWgEoo9v6jvDpnKDQ4ZCw', 'GEMINI_API_KEY=']) {
+    if (html.includes(needle)) throw new Error('the published page appears to contain a secret placeholder or key name');
+  }
 });
 
 await probe('account API', async () => {
@@ -40,4 +44,6 @@ await probe('account API', async () => {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const body = await res.json();
   if (body.ok !== true) throw new Error(JSON.stringify(body));
+  // Booleans only — missing keys are expected until SPONSOR_SECRET_ARN / env are configured.
+  console.log(`readiness gemini=${Boolean(body.gemini)} tinyfish=${Boolean(body.tinyfish)} maritime=${Boolean(body.maritime)} tigerdata=${Boolean(body.tigerdata)}`);
 });

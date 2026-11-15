@@ -1,7 +1,17 @@
 import { useAccount } from '../account';
 import { Ctf } from '../components/Ctf';
 import { ctfId } from '../data/ctf';
-import { PATH_BY_ID, PATH_TREE, stepHref, stepTitle, type Step, type TreeNode } from '../data/paths';
+import {
+  PATH_BY_ID,
+  PATH_TREE,
+  PRACTICAL_PATHS,
+  TREE_PATHS,
+  stepHref,
+  stepTitle,
+  type Step,
+  type TreeNode,
+} from '../data/paths';
+import { PracticalPath } from './PracticalPath';
 
 const NW = 156;
 const NH = 46;
@@ -104,18 +114,28 @@ export function Paths() {
       <p className="tree-key"><i className="done" /> Learned <i className="seen" /> In progress</p>
       <PathTree />
       <div className="path-grid">
-        {['foundations', 'ciphers', 'public-key', 'oblivious', 'sets'].map(id => {
-          const p = PATH_BY_ID[id];
+        {TREE_PATHS.map(p => {
           const s = stats(p.steps, progress);
-          const captured = progress[ctfId(id)] === 'done';
+          const captured = progress[ctfId(p.id)] === 'done';
           return (
-            <a key={id} className="path-card" href={`#path-${id}`} style={{ ['--pc' as string]: p.color }}>
+            <a key={p.id} className="path-card" href={`#path-${p.id}`} style={{ ['--pc' as string]: p.color }}>
               <b>{p.title}</b>
               <span>{s.done} of {s.total} learned</span>
               <span>{captured ? 'Flag captured' : 'Final challenge'}</span>
             </a>
           );
         })}
+      </div>
+      <h2 className="practical-heading">Practical workplace path</h2>
+      <p className="paths-lead">A Future of Work practice path on verifying a software download. Results are a learning record, not a certification.</p>
+      <div className="path-grid">
+        {PRACTICAL_PATHS.map(p => (
+          <a key={p.id} className="path-card" href={`#path-${p.id}`} style={{ ['--pc' as string]: p.color }}>
+            <b>{p.title}</b>
+            <span>{p.steps.length} guided steps</span>
+            <span>Assessment · lab · challenge</span>
+          </a>
+        ))}
       </div>
     </section>
   );
@@ -125,6 +145,7 @@ export function PathDetail({ id }: { id: string }) {
   const path = PATH_BY_ID[id];
   const { user, progress, openAuth } = useAccount();
   if (!path) return <p className="noresult">That learning path is not in the catalog. <a href="#paths">The learning tree</a></p>;
+  if (path.kind === 'practical') return <PracticalPath id={id} />;
   const s = stats(path.steps, progress);
   const finished = s.done === s.total;
   return (

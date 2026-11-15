@@ -82,6 +82,22 @@
         { "id": "psi", "kind": "topic" },
         { "id": "psu", "kind": "topic" }
       ]
+    },
+    {
+      "id": "verify-download",
+      "title": "Verify a software download",
+      "blurb": "A practical Future of Work path: hash visualization, research, a toy-seal lab, the collision gate, then a workplace check against a trusted digest or signature.",
+      "color": "#2E7D32",
+      "kind": "practical",
+      "steps": [
+        { "id": "vd-assess-1", "kind": "assessment" },
+        { "id": "hash", "kind": "topic" },
+        { "id": "vd-research", "kind": "research" },
+        { "id": "vd-lab", "kind": "lab" },
+        { "id": "seal", "kind": "challenge" },
+        { "id": "vd-workplace", "kind": "scenario" },
+        { "id": "vd-skills", "kind": "summary" }
+      ]
     }
   ]
 }

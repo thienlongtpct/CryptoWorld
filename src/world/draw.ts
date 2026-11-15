@@ -24,6 +24,8 @@ export interface PaintState {
   goal?: Spot | null;
   /** Spot under the player's feet: a soft pulse so interactables read clearly. */
   near?: Spot | null;
+  /** Bit, the cipher companion, floating beside the player. `image` is its 16 × 16 sprite frame. */
+  companion?: { x: number; y: number; image: HTMLCanvasElement } | null;
 }
 
 function load(src: string) {
@@ -198,6 +200,8 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   }
   const step = state.walking && !state.reduced ? [1, 0, 2, 0][Math.floor(state.time / 130) % 4] : 0;
   sprites.push({ y: state.y, draw: () => drawActor(ctx, state.x, state.y, camX, camY, unit, sprite('player', state.facing, step)) });
+  const bit = state.companion;
+  if (bit) sprites.push({ y: bit.y, draw: () => drawCompanion(ctx, bit.x, bit.y, camX, camY, unit, bit.image, state.time, state.reduced) });
   sprites.sort((a, b) => a.y - b.y);
   for (const sprite of sprites) sprite.draw();
 
@@ -1100,6 +1104,22 @@ function drawActor(ctx: CanvasRenderingContext2D, worldX: number, worldY: number
   const h = SPRITE_H * unit;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(frame, Math.round(footX - w / 2), Math.round(footY - h + unit), Math.round(w), Math.round(h));
+}
+
+/** Bit floats about a tile above the floor, with a small shadow and a slow two-pixel bob. */
+function drawCompanion(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, camX: number, camY: number, unit: number, image: HTMLCanvasElement, time: number, reduced: boolean) {
+  const tile = 16 * unit;
+  const scale = unit * 0.8;
+  const footX = (worldX - camX) * tile;
+  const footY = (worldY + 0.35 - camY) * tile;
+  const bob = reduced ? 0 : Math.round(Math.sin(time / 380) * 1.5) * unit;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+  ctx.beginPath();
+  ctx.ellipse(footX, footY - unit, 4 * unit, 1.4 * unit, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const size = 16 * scale;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, Math.round(footX - size / 2), Math.round(footY - size - 7 * unit + bob), Math.round(size), Math.round(size));
 }
 
 /** A bouncing gold arrow above the goal's label, or below the goal pointing up when there is no room above. */

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Eyes, Html } from '../components/ui';
 import { SunhacksMark } from '../components/SunhacksMark';
+import { MissionRail } from '../components/MissionRail';
 import { ENTRY_BY_ID } from '../data/entries';
 import { PAGES } from '../data/pages';
 import { EntryView } from '../pages/TermPage';
@@ -109,6 +110,12 @@ export function VisPage({ topicId, code, frames, stage, actions = [], autoplay =
   const tourNarrow = !!tour && narrow;
   return (
     <div className={`vis${tour ? ' tour' : ''}`} style={{ ['--tc' as string]: topic.color }}>
+      {topicId === 'hash' && !tour && (
+        <div className="vis-mission">
+          <MissionRail step="visualize" />
+          <p className="vis-mission-note">Gemini tutors in Hash Forest explain concepts; they never mark the gate complete. Authored hints stay usable if Gemini is offline.</p>
+        </div>
+      )}
       <header className="vis-top">
         <div className="vis-brand">
           <a className="vis-logo" href="#world" aria-label="Return to Crypto Dungeon">VISU<span>CRYPTO</span></a>
@@ -136,6 +143,7 @@ export function VisPage({ topicId, code, frames, stage, actions = [], autoplay =
             {progress[topicId] === 'done' ? 'Learned' : saving ? 'Saving…' : 'Mark learned'}
           </button>
           <button type="button" className={`vis-lec ${lecture ? 'on' : ''}`} onClick={() => setLecture(x => !x)}>e-Lecture</button>
+          {topicId === 'hash' && !tour && <a className="vis-lec" href="#research?topic=hash">Research</a>}
         </div>
       </header>
       {saveError && <p className="acct-error" role="alert">Could not save this on your account. Try Mark learned again.</p>}

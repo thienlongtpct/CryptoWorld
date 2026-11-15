@@ -1187,6 +1187,32 @@ export function saveMotion(value: 'system' | 'reduce' | 'full') {
   }
 }
 
+const BIT_KEY = 'dungeon-bit';
+
+/** Bit's tutorials the player has already seen or skipped, and the instant-text setting. */
+export interface BitPrefs {
+  seen: string[];
+  instant: boolean;
+}
+
+export function loadBit(): BitPrefs {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BIT_KEY) || '{}') as Partial<BitPrefs>;
+    const seen = Array.isArray(parsed.seen) ? parsed.seen.filter((id): id is string => typeof id === 'string') : [];
+    return { seen, instant: parsed.instant === true };
+  } catch {
+    return { seen: [], instant: false };
+  }
+}
+
+export function saveBit(prefs: BitPrefs) {
+  try {
+    localStorage.setItem(BIT_KEY, JSON.stringify({ seen: [...new Set(prefs.seen)], instant: prefs.instant }));
+  } catch {
+    /* Bit may introduce a place again next visit. */
+  }
+}
+
 export function reachableRooms(user: string | null, progress: Record<string, string>): string[] {
   return ROOM_LIST.filter(id => canEnter(id, user, progress));
 }

@@ -4,6 +4,8 @@ import { CHALLENGE_BY_ID, challengeItemId, sealOf, type Challenge, type Classify
 import { CHARACTER_BY_ID, PORTRAYAL_BADGE, portrayalNotice } from '../characters/cast';
 import { counts, shiftCh } from '../lib/crypto';
 import { Portrait } from '../world/dialogue';
+import { MissionRail } from '../components/MissionRail';
+import { LabPanel } from './LabPanel';
 
 export function ChallengePanel({
   id,
@@ -14,6 +16,7 @@ export function ChallengePanel({
   onClose,
   onSolved,
   onLesson,
+  onJournalSkills,
 }: {
   id: string;
   answer: string;
@@ -23,6 +26,7 @@ export function ChallengePanel({
   onClose: () => void;
   onSolved: () => void;
   onLesson: (route: string) => void;
+  onJournalSkills?: () => void;
 }) {
   const challenge = CHALLENGE_BY_ID[id];
   const titleId = useId();
@@ -186,11 +190,13 @@ export function ChallengePanel({
           <button type="button" className="cw-x" aria-label="Return to dungeon" onClick={onClose}>✕</button>
         </header>
         <div className="cw-chal-body">
+          {id === 'seal' && <MissionRail step="lab" />}
           <p className="cw-chal-objective">{challenge.objective}</p>
           <p className="cw-evidence"><b>Evidence</b>{challenge.evidence}</p>
           <p className="cw-chal-format">{challenge.flagFormat}</p>
           {user && challenge.tools.length > 0 && <Tools challenge={challenge} />}
-          {!user && <p className="cw-chal-note">Log in to use the tools, submit an answer, and save the gate. You can read the evidence before that.</p>}
+          {id === 'seal' && <LabPanel onUseCandidate={word => onAnswer(word)} />}
+          {!user && <p className="cw-chal-note">Log in to use the tools, submit an answer, and save the gate. You can read the evidence before that. Guests may still read the Maritime template.</p>}
           <form className="cw-chal-form" onSubmit={submit}>
             {board
               ? <Board question={board.question} items={board.items} choices={board.choices} picks={picks} wrongRows={wrongRows} disabled={!user} onPick={pick} />
@@ -220,6 +226,14 @@ export function ChallengePanel({
           {solved && <p className="cw-answer" role="status">The gate is open. This reward is already on your account.</p>}
           <div className="cw-actions cw-chal-foot">
             <button type="button" className="btn" onClick={() => onLesson(challenge.lesson)}>Learn this concept</button>
+            {id === 'seal' && (
+              <button type="button" className="btn ghost" onClick={() => onLesson('research?topic=hash')}>Research Desk</button>
+            )}
+            {id === 'seal' && onJournalSkills && (solved || explanation) && (
+              <button type="button" className="btn" onClick={onJournalSkills}>
+                Journal skills record
+              </button>
+            )}
             {solved && <button type="button" className="btn" onClick={onSolved}>{board ? 'Close and continue' : 'Go through'}</button>}
             <button type="button" className="btn ghost" onClick={onClose}>Return to dungeon</button>
           </div>

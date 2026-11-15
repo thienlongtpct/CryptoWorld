@@ -19,6 +19,7 @@ export function AzBar({ className }: { className?: string }) {
 const NAV = [
   { href: '#world', id: 'world', label: 'World' },
   { href: '#library', id: 'library', label: 'Library' },
+  { href: '#research', id: 'research', label: 'Research' },
   { href: '#paths', id: 'paths', label: 'Paths' },
   { href: '#terms', id: 'terms', label: 'Dictionary' },
   { href: '#classical', id: 'classical', label: 'Classical' },
@@ -29,11 +30,13 @@ const NAV = [
 ];
 
 function navOn(route: string, id: string): boolean {
-  if (id === 'world') return route === '' || route === 'top' || route === 'world';
-  if (id === 'library') return route === 'library';
-  if (id === 'paths') return route === 'paths' || route.startsWith('path-') || route.startsWith('lesson-');
-  if (id === 'terms') return route === 'terms' || route.startsWith('L-') || route.startsWith('def-') || !!ENTRY_BY_ID[route];
-  return route === id || route.startsWith(id + '-');
+  const base = route.split('?')[0];
+  if (id === 'world') return base === '' || base === 'top' || base === 'world';
+  if (id === 'library') return base === 'library';
+  if (id === 'research') return base === 'research';
+  if (id === 'paths') return base === 'paths' || base.startsWith('path-') || base.startsWith('lesson-');
+  if (id === 'terms') return base === 'terms' || base.startsWith('L-') || base.startsWith('def-') || !!ENTRY_BY_ID[base];
+  return base === id || base.startsWith(id + '-');
 }
 
 export function Header() {

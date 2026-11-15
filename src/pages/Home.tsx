@@ -52,9 +52,19 @@ export function Home() {
         </div>
       </div>
 
+      <a className="vpath-link" href="#research">
+        <b>Research Desk</b>
+        <span>Gather published sources for hashing topics and selected bibliography papers, then open a related visualization.</span>
+      </a>
+
       <a className="vpath-link" href="#paths">
         <b>Learning path</b>
         <span>One tree, from modular arithmetic into ciphers, public-key cryptography, oblivious computation, and private sets.</span>
+      </a>
+
+      <a className="vpath-link" href="#path-verify-download">
+        <b>Verify a software download</b>
+        <span>Practical Future of Work path: assessment, hash visualization, research, Maritime toy-seal lab, collision gate, and a workplace digest check.</span>
       </a>
 
       <div className="vhome-tip">

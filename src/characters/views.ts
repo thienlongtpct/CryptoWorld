@@ -8,6 +8,7 @@ import {
   type AskMode,
   type Scenario,
 } from './cast.ts';
+import { TOPIC_BY_ID } from '../vis/registry.ts';
 
 export const HASH_INPUT = 'grove-leaf';
 export const HASH_DIGEST = 'd505d129a279ad5a19f6ee0fad5f1b0c223ed06b31980c17392048c3fdd654c6';
@@ -299,9 +300,55 @@ export function systemFor(characterId: string, mode: AskMode): string {
   return lines.join('\n');
 }
 
+/** Where Bit, the guide, can be asked from. Matches PlaceKind in src/bit/script.ts. */
+export const GUIDE_LOCATIONS = ['entrance', 'sanctuary', 'library', 'catacombs', 'quest', 'vis', 'page', 'gate', 'minigame'] as const;
+
+export const GUIDE_SYSTEM = [
+  'You are Bit, a small floating cipher companion who guides university students and beginners through VisuCrypto, a cryptography learning game.',
+  'Be curious and friendly. Answer in at most three short sentences of plain text, one idea per sentence. Do not use markdown, lists, or headings.',
+  'When you explain a term, use a tiny Alice, Bob, and Eve example: Alice and Bob talk, Eve only listens.',
+  'Use the JSON view for where the learner is and what they are studying. General textbook cryptography is fine. Say so when you are unsure.',
+  'Every number in this game is a toy parameter. Never suggest that the toy schemes are secure.',
+  'Never give a challenge answer, flag, or final word. Offer one small hint, then point to the curated hints and the labeled walkthrough on the gate.',
+].join('\n');
+
+/** Bit, the guide: no fixed region or secrets. The view carries only the place, the topic, and any open gate's public evidence. */
+function prepareGuide(body: Record<string, unknown>): PreparedNpc | RejectedNpc {
+  const question = typeof body.question === 'string' ? body.question.trim() : '';
+  if (!question || question.length > 400) return fail(400, 'Ask a question of at most 400 characters.');
+  const location = GUIDE_LOCATIONS.find(item => item === body.location) ?? 'page';
+  const topic = TOPIC_BY_ID[typeof body.topic === 'string' ? body.topic : ''];
+  const regionCandidate = REGION_BY_ID[typeof body.regionId === 'string' ? body.regionId : ''];
+  const region = regionCandidate?.open ? regionCandidate : undefined;
+  const challenge = CHALLENGE_BY_ID[typeof body.challengeId === 'string' ? body.challengeId : ''];
+  const place = typeof body.place === 'string' ? body.place.replace(/[^\p{L}\p{N} ’'.,:-]/gu, '').slice(0, 60) : '';
+  const view: NpcView = {
+    characterId: 'bit',
+    regionId: region?.id ?? 'guide',
+    mode: 'explain',
+    scenario: 'passive',
+    context: `The learner is at ${place || 'a page of VisuCrypto'} (${location}).`,
+    overview: region ? region.summary : null,
+    public: {
+      location,
+      ...(topic ? { topic: topic.title, topicBlurb: topic.blurb } : {}),
+    },
+    own: null,
+    publicMessages: [],
+  };
+  let system = GUIDE_SYSTEM;
+  if (challenge) {
+    view.public = { ...view.public, challenge: challenge.title, evidence: challenge.evidence, flagFormat: challenge.flagFormat };
+    view.publicMessages = [challenge.objective];
+    system += '\nThe learner is on a scored challenge. Start with one small hint and ask what they have tried. Do not decide that the challenge is complete and do not award a reward.';
+  }
+  return { ok: true, view, system };
+}
+
 export function prepareNpc(input: unknown): PreparedNpc | RejectedNpc {
   if (!input || typeof input !== 'object') return fail(400, 'Send a character, a region, and a question.');
   const body = input as Record<string, unknown>;
+  if (body.characterId === 'bit') return prepareGuide(body);
   const character = CHARACTER_BY_ID[typeof body.characterId === 'string' ? body.characterId : ''];
   const region = REGION_BY_ID[typeof body.regionId === 'string' ? body.regionId : ''];
   const mode: AskMode = body.mode === 'role' ? 'role' : body.mode === 'explain' ? 'explain' : 'explain';

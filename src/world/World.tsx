@@ -1,8 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { useAccount } from '../account';
-import { accessReason, LIBRARY_SECTIONS, SHELVES } from '../access';
+import { accessReason, isRestricted, LIBRARY_SECTIONS, SHELVES } from '../access';
+import { MISSION, MISSION_ID, parseWorldMission } from '../data/mission';
 import { CATACOMB_GATES, CHALLENGE_BY_ID, challengeItemId } from '../dungeon/challenges';
 import { ChallengePanel } from '../dungeon/ChallengePanel';
+import { useApp } from '../state';
 import {
   SOLVED_COUNT,
   canEnter,
@@ -29,6 +31,9 @@ import {
 } from '../dungeon/rooms';
 import { TOPIC_BY_ID, type Topic } from '../vis/registry';
 import { Directory, Portrait, Talk } from './dialogue';
+import { BitGuide, type BitCommand } from '../bit/BitGuide';
+import { bitSpriteCanvas } from '../bit/BitArt';
+import { placeOf } from '../bit/script';
 import { Landing } from './Landing';
 import { paint } from './draw';
 import type { Spot } from './map';
@@ -70,6 +75,7 @@ function typingTarget(target: EventTarget | null): boolean {
  * position, and open gate.
  */
 export function World({ layer }: { layer?: ReactNode } = {}) {
+  const { route, go } = useApp();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef(false);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -99,6 +105,8 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   const [drafts, setDrafts] = useState(loadDrafts);
   const [listOpen, setListOpen] = useState(false);
   const [journal, setJournal] = useState(false);
+  const [journalTab, setJournalTab] = useState<'challenges' | 'skills'>('challenges');
+  const missionHandled = useRef('');
   const [directory, setDirectory] = useState(false);
   const [settings, setSettings] = useState(false);
   const [catalog, setCatalog] = useState(false);
@@ -112,6 +120,11 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   const [motion, setMotion] = useState(loadMotion);
   const [reducedSystem, setReducedSystem] = useState(false);
   const [extra, setExtra] = useState<Record<string, 'done'>>({});
+  const [bitOpen, setBitOpen] = useState(false);
+  const [celebrate, setCelebrate] = useState<{ id: string; n: number } | null>(null);
+  const [bitCommand, setBitCommand] = useState<BitCommand | null>(null);
+  const bitPos = useRef({ x: initial.x + 0.9, y: initial.y - 0.2 });
+  const bitRoom = useRef(initial.room);
 
   const merged = useMemo(() => ({ ...progress, ...extra }), [progress, extra]);
   progressRef.current = merged;
@@ -121,7 +134,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   const modal = welcome || !!talk || !!challengeId || listOpen || journal || directory || settings || !!preview || summary;
   const layered = !!layer;
   layerRef.current = layered;
-  uiLock.current = modal || authOpen || layered;
+  uiLock.current = modal || authOpen || layered || bitOpen;
   const reduced = motion === 'reduce' || (motion === 'system' && reducedSystem);
   const solved = SOLVED_COUNT(merged);
   const goal = nextGoal(roomId, user, merged);
@@ -137,12 +150,12 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   }, []);
 
   useEffect(() => {
-    if (bodyRef.current) bodyRef.current.inert = modal || authOpen;
-  }, [modal, authOpen]);
+    if (bodyRef.current) bodyRef.current.inert = modal || authOpen || bitOpen;
+  }, [modal, authOpen, bitOpen]);
 
   useEffect(() => {
-    if (welcome || talk || challengeId || listOpen || journal || authOpen || preview || summary || settings || layered) keys.current.clear();
-  }, [welcome, talk, challengeId, listOpen, journal, authOpen, preview, summary, settings, layered]);
+    if (welcome || talk || challengeId || listOpen || journal || authOpen || preview || summary || settings || layered || bitOpen) keys.current.clear();
+  }, [welcome, talk, challengeId, listOpen, journal, authOpen, preview, summary, settings, layered, bitOpen]);
 
   // Leaving a Library page: save nothing new, restore the room's objective, and put focus back in the world.
   const wasLayered = useRef(layered);
@@ -172,8 +185,18 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
     if (!booted.current) {
       booted.current = true;
       applyPlace(resolvePlace(loadPlace(), user, progress));
-      const resume = loadResume();
-      if (resume && user && CHALLENGE_BY_ID[resume]) setChallengeId(resume);
+      const mission = parseWorldMission(route);
+      if (mission?.journal === 'skills') {
+        // Mission deep-link to Journal wins over a resumed gate.
+        saveResume('');
+        setChallengeId('');
+        setJournalTab('skills');
+        setJournal(true);
+        missionHandled.current = route;
+      } else {
+        const resume = loadResume();
+        if (resume && user && CHALLENGE_BY_ID[resume]) setChallengeId(resume);
+      }
       return;
     }
     if (!user && !canEnter(roomRef.current, null, progressRef.current)) applyPlace(homePlace());
@@ -183,7 +206,51 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
       run();
     }
     if (!authOpen && !user) pendingRef.current = null;
-  }, [ready, user, progress, authOpen]);
+  }, [ready, user, progress, authOpen, route]);
+
+  // Catalog / Library mission deep links: open forest seal or Journal Skills without losing drafts.
+  useEffect(() => {
+    if (!ready || layered || !booted.current) return;
+    const mission = parseWorldMission(route);
+    if (!mission || mission.mission !== MISSION_ID) return;
+    if (missionHandled.current === route) return;
+    missionHandled.current = route;
+
+    if (mission.journal === 'skills') {
+      saveResume('');
+      setChallengeId('');
+      setTalk(null);
+      setListOpen(false);
+      setCatalog(false);
+      setJournalTab('skills');
+      setJournal(true);
+      setStatus('Journal Skills — learning record for Verify a software download.');
+      if (route.includes('?')) go('world');
+      return;
+    }
+
+    if (mission.gate === 'seal') {
+      if (!canEnter('forest', userRef.current, progressRef.current)) {
+        if (!userRef.current) {
+          afterLogin('Log in to enter Hash Forest for the Maritime lab and Forged seal gate.', () => {
+            goTo('forest');
+            saveResume('seal');
+            setChallengeId('seal');
+            setStatus('Forged seal · Maritime workbench. Submit still grades on the server.');
+          });
+          return;
+        }
+        setStatus('Hash Forest is not open yet from here.');
+        return;
+      }
+      goTo('forest');
+      saveResume('seal');
+      setChallengeId('seal');
+      setJournal(false);
+      setStatus('Mission lab: run the toy seal, then submit a colliding word. Gemini never opens the gate.');
+      if (route.includes('?')) go('world');
+    }
+  }, [ready, layered, route, go]);
 
   function afterLogin(reason: string, action: () => void) {
     if (userRef.current) {
@@ -208,6 +275,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   function cleared(id: string) {
     const itemId = challengeItemId(id);
     setExtra(prev => ({ ...prev, [itemId]: 'done' }));
+    setCelebrate(prev => ({ id, n: (prev?.n ?? 0) + 1 }));
     const overlay = { ...progressRef.current, [itemId]: 'done' as const };
     progressRef.current = overlay;
     const current = roomOf(roomRef.current);
@@ -319,6 +387,16 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
         setNear(spot);
         setStatus(spot ? promptFor(spot, userRef.current, progressRef.current) : current.objective);
       }
+      // Bit trails the player on the side away from where they face, and snaps along on a room change.
+      const offset = facing.current === 'left' ? { x: 0.95, y: -0.15 } : facing.current === 'right' ? { x: -0.95, y: -0.15 } : facing.current === 'up' ? { x: 0.85, y: 0.45 } : { x: 0.9, y: -0.3 };
+      const want = { x: pos.current.x + offset.x, y: pos.current.y + offset.y };
+      if (bitRoom.current !== roomRef.current || Math.hypot(want.x - bitPos.current.x, want.y - bitPos.current.y) > 6) {
+        bitRoom.current = roomRef.current;
+        bitPos.current = want;
+      } else {
+        const follow = reduced ? 1 : Math.min(1, dt * 4);
+        bitPos.current = { x: bitPos.current.x + (want.x - bitPos.current.x) * follow, y: bitPos.current.y + (want.y - bitPos.current.y) * follow };
+      }
       const canvas = canvasRef.current;
       if (canvas) {
         const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -351,6 +429,11 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
             goal: goalSpotRef.current,
             near: nearRef.current,
             walking: !uiLock.current && keys.current.size > 0,
+            companion: {
+              x: bitPos.current.x,
+              y: bitPos.current.y,
+              image: bitSpriteCanvas(reduced ? 0 : (Math.floor(now / 420) % 2) as 0 | 1, !reduced && now % 3800 < 140),
+            },
           });
         }
       }
@@ -446,6 +529,14 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
     });
   }
 
+  const bitPlace = useMemo(() => placeOf({
+    route,
+    layered,
+    roomId,
+    roomName: room.name,
+    challengeId: challengeId || undefined,
+    regionId: room.spots.find(spot => spot.regionId)?.regionId,
+  }), [route, layered, roomId, room.name, challengeId]);
   const backLabel = challengeId ? `Back to ${CHALLENGE_BY_ID[challengeId]?.title ?? 'the gate'}` : `Back to ${room.name}`;
   const bridgeOpen = merged[challengeItemId('wire')] === 'done';
   const sealOpen = merged[challengeItemId('seal')] === 'done';
@@ -601,6 +692,13 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
           onClose={() => { saveResume(''); setChallengeId(''); }}
           onSolved={() => cleared(challengeId)}
           onLesson={ask}
+          onJournalSkills={() => {
+            saveResume(challengeId);
+            setChallengeId('');
+            setJournalTab('skills');
+            setJournal(true);
+            setStatus('Journal Skills — learning record (not a certification).');
+          }}
         />
       )}
       {directory && <Directory onClose={() => setDirectory(false)} onOpen={ask} />}
@@ -618,6 +716,8 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
         <Journal
           user={user}
           progress={merged}
+          tab={journalTab}
+          onTab={setJournalTab}
           confirmReset={confirmReset}
           onAskConfirm={() => setConfirmReset(true)}
           onCancelReset={() => setConfirmReset(false)}
@@ -641,7 +741,12 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
               <option value="full">Allow motion</option>
             </select>
           </label>
-          <p>Reduced motion keeps the torches still and skips the gate-opening pause. Paths and objects also have text labels.</p>
+          <p>Reduced motion keeps the torches still and skips the gate-opening pause. Paths and objects also have text labels. It also shows Bit’s messages all at once.</p>
+          <div className="cw-actions">
+            <button type="button" className="btn" onClick={() => { setSettings(false); setBitCommand(prev => ({ start: 'welcome', n: (prev?.n ?? 0) + 1 })); }}>Replay Bit’s introduction</button>
+            <button type="button" className="btn ghost" onClick={() => { setSettings(false); setBitCommand(prev => ({ start: 'demo', n: (prev?.n ?? 0) + 1 })); }}>Bit’s Alice, Bob and Eve demo</button>
+          </div>
+          <p>Bit’s menu also switches between typed and instant messages.</p>
           <p>Tiles are from Anokolisa’s free Pixel Crawler pack. Every character is drawn by the game from one shared pixel template, so the cast and the player match.</p>
         </Panel>
       )}
@@ -658,6 +763,21 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
       )}
       {summary && <VaultSummary progress={merged} onReplay={() => { setSummary(false); goTo('caesar'); }} onHub={() => { setSummary(false); goTo('sanctuary'); }} onOpen={ask} onClose={() => setSummary(false)} />}
     </div>
+    <BitGuide
+      place={bitPlace}
+      user={user}
+      ready={ready}
+      blocked={welcome || authOpen || (!layered && (!!talk || listOpen || journal || directory || settings || !!preview || summary))}
+      reduced={reduced}
+      hintsShown={challengeId ? draft.hints : 0}
+      onHint={next => { if (challengeId) writeDraft(challengeId, { hints: next }); }}
+      onOpen={ask}
+      onLogin={() => openAuth('signin', 'Log in to ask Bit questions and to use the gate hints. Bit’s tips work without an account.')}
+      onOpenChange={setBitOpen}
+      celebrate={celebrate}
+      command={bitCommand}
+      layered={layered}
+    />
     </>
   );
 }
@@ -767,9 +887,51 @@ function RoomList({ user, progress, onClose, onGo, onFuture, onOpen }: {
   );
 }
 
-function Journal({ user, progress, confirmReset, onAskConfirm, onCancelReset, onReset, onOpen, onClose }: {
+type SkillsRecord = {
+  disclaimer?: string;
+  skills?: Array<{
+    id: string;
+    title: string;
+    status: string;
+    assistance: string | null;
+    evidence: Array<{ type: string; taskId: string; at: string; result?: { correctCount?: number; total?: number; passed?: boolean; correct?: boolean } }>;
+  }>;
+  path?: { title: string; steps: Array<{ id: string; kind: string; status: string; assistance: string | null; result?: { correctCount?: number; total?: number; passed?: boolean } }> } | null;
+};
+
+type ActivityRecord = {
+  enabled: boolean;
+  days: Array<{ day: string; total: number; byType: Record<string, number> }>;
+  streak: number;
+  total: number;
+  activeDays: number;
+};
+
+function ActivityStrip({ activity }: { activity: ActivityRecord }) {
+  const max = Math.max(1, ...activity.days.map(d => d.total));
+  return (
+    <div className="cw-activity">
+      <p className="cw-panel-lede">
+        Last {activity.days.length} days: {activity.total} evidence {activity.total === 1 ? 'row' : 'rows'} on {activity.activeDays} {activity.activeDays === 1 ? 'day' : 'days'}
+        {activity.streak > 0 ? ` · ${activity.streak}-day streak` : ''}.
+      </p>
+      <div className="cw-activity-row" style={{ gridTemplateColumns: `repeat(${activity.days.length}, minmax(0, 1fr))` }} role="img" aria-label={`Daily activity, ${activity.total} rows over ${activity.days.length} days`}>
+        {activity.days.map(d => {
+          const level = d.total === 0 ? 0 : Math.min(4, Math.ceil((d.total / max) * 4));
+          const kinds = Object.entries(d.byType).map(([type, n]) => `${type} ${n}`).join(', ');
+          return <span key={d.day} className={`cw-activity-cell l${level}`} title={`${d.day}: ${d.total ? kinds : 'no activity'}`} />;
+        })}
+      </div>
+      <p className="cw-activity-note">Stored in TigerData (TimescaleDB hypertable and daily continuous aggregate).</p>
+    </div>
+  );
+}
+
+function Journal({ user, progress, tab, onTab, confirmReset, onAskConfirm, onCancelReset, onReset, onOpen, onClose }: {
   user: string | null;
   progress: Record<string, string>;
+  tab: 'challenges' | 'skills';
+  onTab: (tab: 'challenges' | 'skills') => void;
   confirmReset: boolean;
   onAskConfirm: () => void;
   onCancelReset: () => void;
@@ -779,6 +941,44 @@ function Journal({ user, progress, confirmReset, onAskConfirm, onCancelReset, on
 }) {
   const all = Object.values(CHALLENGE_BY_ID);
   const done = all.filter(challenge => progress[challengeItemId(challenge.id)] === 'done').length;
+  const [skills, setSkills] = useState<SkillsRecord | null>(null);
+  const [skillsError, setSkillsError] = useState('');
+  const [activity, setActivity] = useState<ActivityRecord | null>(null);
+
+  useEffect(() => {
+    if (tab !== 'skills' || !user) {
+      setSkills(null);
+      setSkillsError('');
+      setActivity(null);
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/activity', { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (!cancelled) setActivity(data && data.enabled ? data as ActivityRecord : null); })
+      .catch(() => { if (!cancelled) setActivity(null); });
+    (async () => {
+      try {
+        const res = await fetch('/api/skills', { credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setSkillsError(typeof data.error === 'string' ? data.error : 'Could not load the learning record.');
+          setSkills(null);
+          return;
+        }
+        setSkills(data as SkillsRecord);
+        setSkillsError('');
+      } catch {
+        if (!cancelled) {
+          setSkillsError('Could not load the learning record.');
+          setSkills(null);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tab, user]);
+
   return (
     <Panel
       title="Journal"
@@ -788,24 +988,67 @@ function Journal({ user, progress, confirmReset, onAskConfirm, onCancelReset, on
         ? <><button type="button" className="btn" onClick={onReset}>Yes, reset my position</button><button type="button" className="btn ghost" onClick={onCancelReset}>Keep it</button></>
         : <button type="button" className="btn ghost" onClick={onAskConfirm}>Reset position to the start</button>}
     >
-      <p className="cw-panel-lede">{user ? `${done} of ${all.length} challenges solved on your account.` : 'Log in to save solved challenges. You can still read them here.'}</p>
-      {[...new Set(all.map(challenge => challenge.wing))].map(wing => (
-        <section key={wing} className="cw-group">
-          <h3>{wing}</h3>
-          {all.filter(challenge => challenge.wing === wing).map(challenge => {
-            const solved = progress[challengeItemId(challenge.id)] === 'done';
-            return (
-              <div key={challenge.id} className="cw-item">
-                <div>
-                  <b>{challenge.title} <span className={`cw-state${solved ? ' done' : ''}`}>{solved ? 'Solved' : 'Not solved'}</span></b>
-                  <p>{challenge.concepts.join(' · ')}</p>
-                </div>
-                <button type="button" className="btn ghost" onClick={() => onOpen(challenge.lesson)}>{TOPIC_BY_ID[challenge.lesson]?.title ?? 'Lesson'}</button>
+      <div className="cw-journal-tabs" role="tablist" aria-label="Journal sections">
+        <button type="button" className="btn ghost" role="tab" aria-selected={tab === 'challenges'} onClick={() => onTab('challenges')}>Challenges</button>
+        <button type="button" className="btn ghost" role="tab" aria-selected={tab === 'skills'} onClick={() => onTab('skills')}>Skills</button>
+      </div>
+      {tab === 'challenges' && (
+        <>
+          <p className="cw-panel-lede">{user ? `${done} of ${all.length} challenges solved on your account.` : 'Log in to save solved challenges. You can still read them here.'}</p>
+          {[...new Set(all.map(challenge => challenge.wing))].map(wing => (
+            <section key={wing} className="cw-group">
+              <h3>{wing}</h3>
+              {all.filter(challenge => challenge.wing === wing).map(challenge => {
+                const solved = progress[challengeItemId(challenge.id)] === 'done';
+                return (
+                  <div key={challenge.id} className="cw-item">
+                    <div>
+                      <b>{challenge.title} <span className={`cw-state${solved ? ' done' : ''}`}>{solved ? 'Solved' : 'Not solved'}</span></b>
+                      <p>{challenge.concepts.join(' · ')}</p>
+                    </div>
+                    <button type="button" className="btn ghost" onClick={() => onOpen(challenge.lesson)}>{TOPIC_BY_ID[challenge.lesson]?.title ?? 'Lesson'}</button>
+                  </div>
+                );
+              })}
+            </section>
+          ))}
+        </>
+      )}
+      {tab === 'skills' && (
+        <section className="cw-group">
+          <h3>Learning record</h3>
+          {!user && <p className="cw-panel-lede">Log in to load assessed skills from server-checked evidence.</p>}
+          {user && skillsError && <p className="cw-panel-lede" role="alert">{skillsError}</p>}
+          {user && !skills && !skillsError && <p className="cw-panel-lede">Loading skills…</p>}
+          {skills?.disclaimer && <p className="cw-panel-lede">{skills.disclaimer}</p>}
+          {user && activity && <ActivityStrip activity={activity} />}
+          {skills?.path && (
+            <p className="cw-panel-lede">
+              Path: {skills.path.title}.{' '}
+              <button type="button" className="btn ghost" onClick={() => onOpen('path-verify-download')}>Open path</button>
+            </p>
+          )}
+          {(skills?.skills ?? []).map(skill => (
+            <div key={skill.id} className="cw-item">
+              <div>
+                <b>{skill.title} <span className={`cw-state${skill.status === 'assessed' ? ' done' : ''}`}>{skill.status}</span></b>
+                <p>
+                  {skill.assistance ? `Assistance: ${skill.assistance}. ` : ''}
+                  {skill.evidence.length
+                    ? skill.evidence.map(ev => {
+                        const score = ev.result?.correctCount != null && ev.result?.total != null
+                          ? `${ev.result.correctCount}/${ev.result.total}`
+                          : ev.result?.correct === true ? 'correct' : ev.result?.correct === false ? 'incorrect' : ev.type;
+                        return `${ev.type} ${ev.taskId} (${score})`;
+                      }).join(' · ')
+                    : 'No server evidence yet.'}
+                </p>
               </div>
-            );
-          })}
+            </div>
+          ))}
+          {user && skills && !(skills.skills?.length) && <p className="cw-panel-lede">No skills rows yet.</p>}
         </section>
-      ))}
+      )}
       {confirmReset && <p className="cw-panel-lede">This moves you back to the start. Solved challenges stay on your account.</p>}
     </Panel>
   );
@@ -878,6 +1121,23 @@ function Catalog({ query, setQuery, shelfId, setShelfId, searchRef, ready, user,
       <h2>Library</h2>
       <button type="button" className="btn ghost" onClick={onClose}>Hide catalog</button>
       <button type="button" className="btn ghost" onClick={onDirectory}>Meet the cryptographers</button>
+      <article className="cw-mission-card">
+        <h3>{MISSION.title}</h3>
+        <p>{MISSION.blurb}</p>
+        <p>Direct navigation for the same mission: Research → hash viz → Maritime lab → server-checked seal → Journal skills.</p>
+        <div className="cw-mission-actions">
+          <button type="button" className="btn" disabled={!ready} onClick={() => onOpen(MISSION.steps[0].href.slice(1))}>
+            {user || !isRestricted('research') ? 'Start research' : 'Log in to start'}
+          </button>
+          <button type="button" className="btn ghost" disabled={!ready} onClick={() => onOpen(`world?mission=${MISSION_ID}&gate=seal`)}>
+            Open seal lab
+          </button>
+          <button type="button" className="btn ghost" disabled={!ready} onClick={() => onOpen(MISSION.pathHref.slice(1))}>
+            Path hub
+          </button>
+        </div>
+        <p className="cw-panel-lede">TinyFish · Maritime · Gemini · JFF Ventures — learning tools only, not endorsement or certification.</p>
+      </article>
       <p>{user ? 'Open a shelf, or search the existing visualizations.' : 'You can read the categories. Log in to open a visualization, quiz, or path.'}</p>
       <form className="cw-search" role="search" onSubmit={event => event.preventDefault()}>
         <input ref={searchRef} type="search" value={query} onChange={event => setQuery(event.target.value)} aria-label="Search the library" placeholder="Search topics" />
@@ -907,16 +1167,19 @@ function Catalog({ query, setQuery, shelfId, setShelfId, searchRef, ready, user,
       {!browsing && <p>Choose a category to read its topics, or search across the library.</p>}
       {browsing && !topics.length && <p>No topic matches that search.</p>}
       <h2>Library sections</h2>
-      {LIBRARY_SECTIONS.map(section => (
-        <article key={section.route} className="cw-topic">
-          <b>{section.title}</b>
-          <p>{section.blurb}</p>
-          <button type="button" className="btn" disabled={!ready} onClick={() => onOpen(section.route)}>
-            {user ? 'Open' : 'Log in to open'}
-            <span className="cw-clip"> {section.title}</span>
-          </button>
-        </article>
-      ))}
+      {LIBRARY_SECTIONS.map(section => {
+        const needsLogin = isRestricted(section.route) && !user;
+        return (
+          <article key={section.route} className="cw-topic">
+            <b>{section.title}</b>
+            <p>{section.blurb}</p>
+            <button type="button" className="btn" disabled={!ready} onClick={() => onOpen(section.route)}>
+              {needsLogin ? 'Log in to open' : 'Open'}
+              <span className="cw-clip"> {section.title}</span>
+            </button>
+          </article>
+        );
+      })}
     </aside>
   );
 }

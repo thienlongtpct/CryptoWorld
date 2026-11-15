@@ -46,6 +46,9 @@ test('health answers without an account', async () => {
   assert.equal(result.status, 200);
   assert.equal(result.body.ok, true);
   assert.equal(result.body.gemini, false);
+  assert.equal(result.body.tinyfish, false);
+  assert.equal(result.body.maritime, false);
+  assert.equal(result.body.tigerdata, false);
   assert.equal(result.headers['cache-control'], 'no-store');
 });
 
@@ -329,6 +332,12 @@ test('the local server registers a learner over HTTP', { timeout: 30_000 }, asyn
     const healthBody = await health.json();
     assert.equal(healthBody.ok, true);
     assert.equal(typeof healthBody.gemini, 'boolean');
+    assert.equal(typeof healthBody.tinyfish, 'boolean');
+    assert.equal(typeof healthBody.maritime, 'boolean');
+    assert.equal(healthBody.tinyfish, false);
+    assert.equal(healthBody.maritime, false);
+    assert.equal(JSON.stringify(healthBody).includes('sk-'), false);
+    assert.equal(JSON.stringify(healthBody).includes('mk_'), false);
     const registered = await fetch(`http://127.0.0.1:${port}/api/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

@@ -73,6 +73,9 @@ export function TermPage({ id }: { id: string }) {
         <nav className="crumbs" aria-label="Breadcrumb"><a href="#library">Library</a> › <a href="#terms">Dictionary</a> › <a href={`#L-${L}`}>{L}</a> › {e.headword}</nav>
         {/* key: remount demos when moving between terms so their state starts fresh */}
         {TOPICS.some(t => t.entry === id) && <p className="xref"><span><b>Visualization</b><a href={`#${TOPICS.find(t => t.entry === id)!.id}`}>Open the step-by-step visualization →</a></span></p>}
+        {(id === 'hash' || id === 'commit' || id === 'cuckoo') && (
+          <p className="xref"><span><b>Research Desk</b><a href={`#research?topic=${id}`}>Gather published sources for this topic →</a></span></p>
+        )}
         <EntryView key={id} e={e} />
         <Practice key={id} entryId={id} />
         <nav className="prevnext" aria-label="Neighbouring terms">

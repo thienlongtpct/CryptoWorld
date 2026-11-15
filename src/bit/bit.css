@@ -1,0 +1,357 @@
+/* Bit, the cipher companion. Palette matches src/bit/art.ts. */
+:root {
+  --bit-ink: #0d0b1e;
+  --bit-navy: #141a3a;
+  --bit-navy-2: #1d2552;
+  --bit-purple: #4b2a8a;
+  --bit-purple-hi: #7a4fc9;
+  --bit-cyan: #3fe6ff;
+  --bit-gold: #d9a03a;
+  --bit-gold-hi: #ffd877;
+  --bit-text: #f4efff;
+  --bit-muted: #c7c2e6;
+}
+
+.bit-sprite,
+.bit-portrait {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Idle: a slow float in two-pixel steps. Speaking: a quicker, smaller bob. */
+@keyframes bit-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes bit-talk {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.bit-float { animation: bit-float 2.4s steps(4, end) infinite; }
+.bit-talk { animation: bit-talk 0.36s steps(2, end) infinite; }
+
+/* ── Guide button ─────────────────────────────────────────────── */
+
+.bit-dock {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 104px);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.bit-dock > * { pointer-events: auto; }
+.bit-dock.layered { bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }
+.bit-dock.hidden { display: none; }
+
+.bit-fab {
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  width: 60px;
+  min-height: 64px;
+  padding: 4px 4px 3px;
+  border: 2px solid var(--bit-gold);
+  background: var(--bit-navy);
+  color: var(--bit-gold-hi);
+  box-shadow: 0 -3px 0 0 var(--bit-ink), 0 3px 0 0 var(--bit-ink), -3px 0 0 0 var(--bit-ink), 3px 0 0 0 var(--bit-ink), 0 6px 0 3px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.bit-fab:hover { background: var(--bit-navy-2); }
+.bit-fab:focus-visible { outline: 3px solid var(--bit-cyan); outline-offset: 5px; }
+.bit-fab-label {
+  font-family: var(--f-pixel);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bit-nudge {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  max-width: min(260px, calc(100vw - 110px));
+  margin-bottom: 10px;
+  border: 2px solid var(--bit-ink);
+  background: #fffaf0;
+  box-shadow: 0 3px 0 var(--bit-ink);
+  animation: bit-pop 0.2s ease-out;
+}
+.bit-nudge::after {
+  content: '';
+  position: absolute;
+  right: -9px;
+  bottom: 12px;
+  width: 8px;
+  height: 8px;
+  background: #fffaf0;
+  border: 2px solid var(--bit-ink);
+  border-left: 0;
+  border-bottom: 0;
+  transform: rotate(45deg);
+}
+.bit-nudge-text {
+  flex: 1;
+  min-height: 44px;
+  padding: 8px 4px 8px 10px;
+  border: 0;
+  background: none;
+  color: #1a1410;
+  font: 600 15px/1.35 var(--f-body);
+  text-align: left;
+  cursor: pointer;
+}
+.bit-nudge-x {
+  min-width: 36px;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: #5b5470;
+  font-size: 14px;
+  cursor: pointer;
+}
+.bit-nudge-text:focus-visible,
+.bit-nudge-x:focus-visible { outline: 3px solid var(--bit-purple-hi); outline-offset: -3px; }
+@keyframes bit-pop {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── Dialogue ─────────────────────────────────────────────────── */
+
+.bit-layer {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  z-index: 55;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.bit-box {
+  position: relative;
+  display: grid;
+  grid-template-columns: 136px minmax(0, 1fr);
+  align-items: end;
+  width: min(780px, 100%);
+  pointer-events: auto;
+  animation: bit-rise 0.22s ease-out;
+}
+@keyframes bit-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The portrait stands on the panel's left edge and rises above it. */
+.bit-portrait-slot {
+  position: relative;
+  z-index: 2;
+  align-self: end;
+  margin: -56px -22px 6px 0;
+  filter: drop-shadow(0 4px 0 rgba(13, 11, 30, 0.45));
+}
+.bit-portrait-slot .bit-portrait { width: 144px; height: 144px; }
+
+.bit-panel {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  max-height: min(58dvh, 520px);
+  overflow: auto;
+  padding: 14px 16px 14px 30px;
+  border: 2px solid var(--bit-gold);
+  background:
+    linear-gradient(180deg, rgba(122, 79, 201, 0.16), rgba(122, 79, 201, 0) 42%),
+    var(--bit-navy);
+  color: var(--bit-text);
+  /* Square pixel border: an ink ring outside the gold line, with notched corners. */
+  box-shadow: 0 -4px 0 0 var(--bit-ink), 0 4px 0 0 var(--bit-ink), -4px 0 0 0 var(--bit-ink), 4px 0 0 0 var(--bit-ink), 0 10px 0 4px rgba(0, 0, 0, 0.28);
+}
+
+.bit-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+.bit-name {
+  margin: 0;
+  padding: 4px 10px 3px;
+  border: 2px solid var(--bit-ink);
+  background: var(--bit-gold);
+  color: var(--bit-ink);
+  font-family: var(--f-pixel);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: inset 0 -2px 0 rgba(13, 11, 30, 0.25);
+}
+.bit-role {
+  flex: 1;
+  min-width: 0;
+  color: var(--bit-muted);
+  font-family: var(--f-pixel);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bit-x {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -6px -8px -6px auto;
+  border: 0;
+  background: none;
+  color: var(--bit-text);
+  font-size: 18px;
+  cursor: pointer;
+}
+.bit-x:hover { color: var(--bit-gold-hi); }
+.bit-x:focus-visible { outline: 3px solid var(--bit-cyan); outline-offset: -4px; }
+
+.bit-source {
+  justify-self: start;
+  margin: 0;
+  padding: 3px 8px;
+  border: 2px solid currentColor;
+  font-family: var(--f-pixel);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.bit-source.curated-hint { color: var(--bit-gold-hi); }
+.bit-source.ai { color: var(--bit-cyan); }
+
+.bit-text {
+  position: relative;
+  min-height: 3.2em;
+  padding: 2px 26px 2px 0;
+  cursor: pointer;
+  outline: none;
+}
+.bit-text:focus-visible { box-shadow: 0 0 0 2px var(--bit-navy), 0 0 0 4px var(--bit-cyan); }
+.bit-text p {
+  margin: 0;
+  font-family: var(--f-body);
+  font-size: 18px;
+  line-height: 1.55;
+  overflow-wrap: break-word;
+}
+/* The rest of the message keeps its space, so words never jump between lines while typing. */
+.bit-unsaid { visibility: hidden; }
+
+.bit-more {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  color: var(--bit-gold-hi);
+  font-size: 13px;
+  line-height: 1;
+  animation: bit-blink 1s steps(2, start) infinite;
+}
+@keyframes bit-blink { to { visibility: hidden; } }
+
+.bit-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+.bit-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 2px solid var(--bit-purple-hi);
+  background: var(--bit-navy-2);
+  color: var(--bit-text);
+  font: 600 16px/1.3 var(--f-body);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 3px 0 var(--bit-ink);
+}
+.bit-choice:hover { border-color: var(--bit-gold); background: #2a2f63; }
+.bit-choice:focus-visible { outline: 3px solid var(--bit-cyan); outline-offset: 2px; border-color: var(--bit-gold); }
+.bit-choice:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--bit-ink); }
+.bit-choice:disabled { opacity: 0.55; cursor: default; }
+.bit-choice.ghost { border-color: #4a4f80; background: transparent; }
+.bit-choice-n {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  background: var(--bit-gold);
+  color: var(--bit-ink);
+  font-family: var(--f-pixel);
+  font-size: 12px;
+}
+
+.bit-ask {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+}
+.bit-ask input {
+  min-height: 44px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 2px solid var(--bit-purple-hi);
+  background: #fffaf0;
+  color: #1a1410;
+  font: 16px/1.3 var(--f-body);
+}
+.bit-ask input:focus-visible { outline: 3px solid var(--bit-cyan); outline-offset: 1px; }
+.bit-ask .bit-choice { justify-content: center; }
+
+.bit-sources { font-size: 14px; color: var(--bit-muted); }
+.bit-sources p { margin: 0 0 4px; }
+.bit-sources ol { margin: 0; padding-left: 20px; }
+.bit-sources a { color: var(--bit-cyan); }
+
+.bit-live,
+.bit-clip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Reduced motion (system setting or the dungeon's Settings): no float, no bob, no slide, no blink. */
+.bit-still .bit-box,
+.bit-still .bit-more { animation: none; }
+.cw-reduced ~ .bit-dock .bit-nudge { animation: none; }
+
+@media (max-width: 640px) {
+  .bit-layer {
+    left: max(8px, env(safe-area-inset-left, 0px));
+    right: max(8px, env(safe-area-inset-right, 0px));
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+  .bit-box { grid-template-columns: 76px minmax(0, 1fr); }
+  .bit-portrait-slot { margin: -44px -14px 4px -2px; }
+  .bit-portrait-slot .bit-portrait { width: 92px; height: 92px; }
+  .bit-panel { padding: 12px 12px 12px 20px; max-height: 62dvh; }
+  .bit-role { display: none; }
+  .bit-text p { font-size: 17px; }
+  .bit-choices { grid-template-columns: 1fr; }
+  .bit-ask { grid-template-columns: minmax(0, 1fr) auto; }
+  .bit-ask .ghost { grid-column: 1 / -1; }
+  .bit-dock { bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
+}
