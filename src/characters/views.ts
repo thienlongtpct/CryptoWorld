@@ -1,4 +1,4 @@
-import { BRIDGE_DH, CHALLENGE_BY_ID } from '../dungeon/challenges.ts';
+import { BRIDGE_DH, CHALLENGE_BY_ID, GARDENS, sealOf } from '../dungeon/challenges.ts';
 import { G, P, mpow } from '../lib/crypto.ts';
 import {
   APPEARANCES,
@@ -159,6 +159,12 @@ function gardenView(characterId: string, mode: AskMode, context: string): NpcVie
   if (characterId === 'alice') {
     return { ...base, own: { set: ALICE_SET, intersection: INTERSECTION }, publicMessages: ['The demo returns the intersection of your set with Bob’s.'] };
   }
+  if (characterId === 'carol') {
+    return { ...base, own: { garden: GARDENS.carol, intersection: GARDENS.carol.filter(plant => GARDENS.dave.includes(plant)) }, publicMessages: ['PSI returned the plants you share with Dave.'] };
+  }
+  if (characterId === 'dave') {
+    return { ...base, own: { garden: GARDENS.dave }, publicMessages: ['You took part in PSI. Carol received the output, not you.'] };
+  }
   if (characterId === 'bob') {
     return { ...base, own: { set: BOB_SET, intersection: INTERSECTION }, publicMessages: ['The demo returns the intersection of your set with Alice’s.'] };
   }
@@ -180,6 +186,16 @@ function hashView(characterId: string, mode: AskMode, context: string): NpcView 
     own: null as NpcView['own'],
     publicMessages: [] as string[],
   };
+  if (characterId === 'faythe' || characterId === 'oscar') {
+    return {
+      ...base,
+      overview: mode === 'explain'
+        ? 'The courier seal adds letter values and keeps the remainder after dividing by 26. Two different words with the same seal are a collision, and this seal has many, for example any rearrangement of the same letters. A cryptographic hash such as SHA-256 is designed so that finding a collision is out of reach. No practical way to do that is known.'
+        : null,
+      public: { parcel: 'LEAF', seal: sealOf('LEAF'), rule: 'add letter values A = 1 to Z = 26, then take the remainder after dividing by 26' },
+      publicMessages: ['The parcel LEAF carries seal 24.', 'The seal is a toy checksum, not a cryptographic hash.'],
+    };
+  }
   if (mode === 'explain') {
     return {
       ...base,

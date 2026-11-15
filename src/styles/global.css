@@ -790,3 +790,37 @@ select{font-family:var(--f-ui);font-size:.9rem;border:1px solid rgba(145,158,171
 .ctf-form{display:grid;gap:12px;justify-items:start;width:100%}
 .ctf-form label{display:grid;gap:4px;font-weight:700;width:min(420px,100%)}
 .ctf-actions{display:flex;flex-wrap:wrap;gap:8px}
+
+/* Event signatures hanging from the top-right corner of every screen. */
+:root { --sig-w: clamp(56px, 7.5vw, 88px); --sig-space: calc(var(--sig-w) * 2 + 44px); }
+.sig { position: fixed; top: 0; right: 16px; z-index: 10000; display: flex; gap: 10px; align-items: flex-start; pointer-events: none; }
+.sig a { pointer-events: auto; display: block; width: var(--sig-w); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); transition: transform 0.15s; }
+.sig a:hover { transform: translateY(3px); }
+.sig a:focus-visible { outline: 3px solid #7fdbff; outline-offset: 2px; }
+.sig-mlh img { display: block; width: 100%; height: auto; }
+.sig-ribbon {
+  display: grid !important;
+  justify-items: center;
+  gap: 3px;
+  padding: 10px 4px 22px;
+  background: #fff;
+  color: #1d2b4a;
+  text-align: center;
+  text-decoration: none;
+  clip-path: polygon(0 0, 100% 0, 100% 86%, 50% 100%, 0 86%);
+}
+.sig-ribbon img { width: 72%; height: auto; }
+.sig-word { font-family: var(--f-body); font-weight: 800; font-size: clamp(10px, 1.2vw, 14px); letter-spacing: -0.01em; line-height: 1; }
+.sig-band {
+  width: 100%;
+  padding: 2px 0;
+  border-block: 2px solid #1d2b4a;
+  font-family: var(--f-pixel);
+  font-size: clamp(14px, 1.9vw, 21px);
+  line-height: 1.15;
+}
+.sig-date { font-size: clamp(8px, 0.95vw, 11px); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1.2; }
+@media (prefers-reduced-motion: reduce) { .sig a { transition: none; } }
+
+/* Keep every top bar's buttons clear of the signatures. */
+.uni-top, .vis-top { padding-right: var(--sig-space) !important; }

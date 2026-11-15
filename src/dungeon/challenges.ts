@@ -2,14 +2,15 @@
 
 import { G, P, mpow } from '../lib/crypto.ts';
 
-export type ChallengeId = 'caesar' | 'xor' | 'vault' | 'wire';
-export type ToolId = 'shift' | 'frequency' | 'convert' | 'xor';
+export type ChallengeId = 'caesar' | 'xor' | 'vault' | 'wire' | 'seal' | 'overlap';
+export type ToolId = 'shift' | 'frequency' | 'convert' | 'xor' | 'seal';
 
 export type ChallengeParams =
   | { kind: 'shift'; ciphertext: string; forward: number }
   | { kind: 'xor'; bytes: number[]; pad: number }
   | { kind: 'xor-shift'; bytes: number[]; pad: number; forward: number }
-  | { kind: 'classify'; question: string; choices: ClassifyChoice[]; items: ClassifyItem[] };
+  | { kind: 'classify'; question: string; choices: ClassifyChoice[]; items: ClassifyItem[] }
+  | { kind: 'seal'; word: string; modulus: number };
 
 /** One answer the player can give for a value in a classification board. */
 export interface ClassifyChoice {
@@ -28,7 +29,7 @@ export interface Challenge {
   id: ChallengeId;
   title: string;
   /** Wing that holds the gate. The Catacombs gates lead to the treasure room. */
-  wing: 'Cipher Catacombs' | 'Key Exchange Bridge';
+  wing: 'Cipher Catacombs' | 'Key Exchange Bridge' | 'Hash Forest' | 'Private Set Gardens';
   difficulty: 'Intro' | 'Practice' | 'Final';
   objective: string;
   evidence: string;
@@ -64,6 +65,17 @@ const XOR_BYTES = [0x47, 0x45, 0x5e, 0x44, 0x5a];
 const XOR_PAD = 0x17;
 const VAULT_BYTES = [0x5a, 0x41, 0x52, 0x45, 0x5d];
 const VAULT_PAD = 0x11;
+
+/** The courier's seal in the Hash Forest: letter values A = 1 … Z = 26, added up, modulo 26. */
+export function sealOf(word: string, modulus = 26): number {
+  return [...word.toUpperCase()].reduce((sum, ch) => (/[A-Z]/.test(ch) ? sum + ch.charCodeAt(0) - 64 : sum), 0) % modulus;
+}
+
+/** The two gardens in the Private Set Gardens. Both lists are public evidence on the board. */
+export const GARDENS = {
+  carol: ['rose', 'iris', 'lily', 'sage', 'mint', 'fern'],
+  dave: ['iris', 'mint', 'oak', 'sage', 'yew'],
+};
 
 export const CHALLENGES: Challenge[] = [
   {
@@ -126,7 +138,7 @@ export const CHALLENGES: Challenge[] = [
     wing: 'Key Exchange Bridge',
     difficulty: 'Intro',
     objective: `Alice and Bob just agreed on a key with Diffie–Hellman while Eve listened to every message on the bridge. Eve is passive: she reads messages and changes nothing. For each value below, choose who was handed it during the exchange. Count only what each person chose, was sent, or computed from what they hold. Do not count guessing.`,
-    evidence: `Public group: p = ${BRIDGE_DH.p}, g = ${BRIDGE_DH.g}. Alice picks a = ${BRIDGE_DH.a} and sends A = g^a mod p = ${BRIDGE_DH.A}. Bob picks b = ${BRIDGE_DH.b} and sends B = g^b mod p = ${BRIDGE_DH.B}. Both compute the key ${BRIDGE_DH.key}. Alice then sends Bob a note encrypted under that key. These are toy numbers: with p this small, anyone could recover a or b by trying every exponent. Real exchanges use groups where that search is out of reach.`,
+    evidence: `Public group: p = ${BRIDGE_DH.p}, g = ${BRIDGE_DH.g}. Alice picks a = ${BRIDGE_DH.a} and sends A = g^a mod p = ${BRIDGE_DH.A}. Bob picks b = ${BRIDGE_DH.b} and sends B = g^b mod p = ${BRIDGE_DH.B}. Both compute the key ${BRIDGE_DH.key}. Alice then sends Bob a note encrypted under that key.`,
     flagFormat: CLASSIFY_FORMAT,
     tools: [],
     hints: [
@@ -155,6 +167,51 @@ export const CHALLENGES: Challenge[] = [
         { id: 'key', label: 'The shared key', value: String(BRIDGE_DH.key) },
         { id: 'note', label: 'Alice’s encrypted note', value: 'ciphertext bytes' },
       ],
+    },
+  },
+  {
+    id: 'seal',
+    title: 'Forged seal',
+    wing: 'Hash Forest',
+    difficulty: 'Practice',
+    objective: 'The courier seals every parcel with a checksum: add the letter values (A = 1 … Z = 26) and keep the remainder after dividing by 26. Oscar says he can swap a parcel without the seal changing. Show that the seal is weak: give a different word with the same seal as LEAF.',
+    evidence: `Parcel: LEAF. L = 12, E = 5, A = 1, F = 6. The sum is 24, and the seal is 24 mod 26 = ${sealOf('LEAF')}.`,
+    flagFormat: 'Submit one word of 3 to 12 letters that is not LEAF. The sunhacks{ } wrapper is optional. Letter case does not matter.',
+    tools: ['seal'],
+    hints: [
+      'The seal only adds the letter values. It never looks at their order.',
+      'A word made of exactly the letters L, E, A, and F in another order has the same sum.',
+      'Any word whose letter values add up to 24, 50, or 76 also works, because those sums leave 24 after dividing by 26.',
+    ],
+    lesson: 'hash',
+    concepts: ['Collisions', 'A checksum is not a cryptographic hash'],
+    params: { kind: 'seal', word: 'LEAF', modulus: 26 },
+  },
+  {
+    id: 'overlap',
+    title: 'Shared beds',
+    wing: 'Private Set Gardens',
+    difficulty: 'Practice',
+    objective: 'Carol and Dave each keep a garden. They run private set intersection (PSI): Carol learns which of her plants Dave also grows, and nothing else about his garden. For each plant, choose what Carol learns when PSI finishes.',
+    evidence: `Carol grows: ${GARDENS.carol.join(', ')}. Dave grows: ${GARDENS.dave.join(', ')}. Only Carol receives the output.`,
+    flagFormat: CLASSIFY_FORMAT,
+    tools: [],
+    hints: [
+      'Carol receives the intersection: the plants both of them grow.',
+      'Carol already knows her own plants. One of hers that is not in the intersection is one Dave does not grow.',
+      'Plants only Dave grows never reach Carol.',
+    ],
+    lesson: 'psi',
+    concepts: ['What PSI reveals', 'What stays hidden from each side'],
+    params: {
+      kind: 'classify',
+      question: 'After PSI, what does Carol learn about this plant?',
+      choices: [
+        { id: 'shared', label: 'Dave grows it too' },
+        { id: 'absent', label: 'Dave does not grow it' },
+        { id: 'nothing', label: 'Nothing about it' },
+      ],
+      items: ['rose', 'iris', 'lily', 'sage', 'mint', 'fern', 'oak', 'yew'].map(plant => ({ id: plant, label: plant[0].toUpperCase() + plant.slice(1), value: '' })),
     },
   },
 ];

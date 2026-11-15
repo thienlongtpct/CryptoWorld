@@ -102,7 +102,7 @@ Opens a hot-reloading dev server at `http://localhost:8765/` and the account ser
 | `npm run preview` | Serve the built `dist/` locally |
 | `npm run artifact` | Build, then write `dist/artifact.html` (the same page without `<html>/<head>/<body>` wrappers) for publishing as a Claude artifact |
 
-`dist/index.html` works on its own: open it from disk or upload it to any static host (GitHub Pages, Netlify, S3, a university web space). It loads nothing except Google Fonts, and falls back to system fonts without them.
+`dist/index.html` works on its own: open it from disk or upload it to any static host (GitHub Pages, Netlify, S3, a university web space). It loads nothing except Google Fonts and the official MLH trust badge, which MLH hosts. It falls back to system fonts without the fonts.
 
 ### Project layout
 

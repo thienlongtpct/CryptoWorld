@@ -925,3 +925,78 @@ html:has(.cw-layer) { scroll-padding-top: calc(var(--cw-strip) + 120px); }
 
 /* Portraits are crops of the world sprites. */
 .cw-portrait { flex: none; image-rendering: pixelated; border: 2px solid #111; background: #e8dcc0; }
+
+/* Panels: title and close in the header, rows with their own action, ordered actions at the bottom. */
+.cw-panel { padding: 0; gap: 0; display: flex; flex-direction: column; }
+.cw-panel.wide { width: min(680px, 100%); }
+.cw-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 2px solid #111;
+  background: #f6d46b;
+}
+.cw-panel-head h2 { margin: 0; font-family: var(--f-pixel); font-size: 16px; font-weight: 400; }
+.cw-panel-body { display: grid; align-content: start; gap: 12px; padding: 12px; overflow: auto; min-height: 0; }
+.cw-panel-foot {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 2px solid #111;
+  background: #fff8e1;
+}
+.cw-panel-foot .btn { width: auto; flex: 1 1 auto; }
+.cw-panel-lede { margin: 0; color: #4e423a; }
+.cw-group { display: grid; gap: 6px; }
+.cw-group h3 {
+  margin: 4px 0 0;
+  font-family: var(--f-pixel);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: #6d4c41;
+  text-transform: uppercase;
+}
+.cw-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 2px solid #111;
+  background: #fff;
+}
+.cw-item:has(.cw-check) { grid-template-columns: auto 1fr auto; }
+.cw-item p { margin: 2px 0 0; font-size: 0.85rem; color: #5d4e45; }
+.cw-item b { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cw-item .btn { width: auto; white-space: nowrap; }
+.cw-item.locked { background: #f4efe6; }
+.cw-item.locked b { color: #6d625a; }
+.cw-item-actions { display: flex; gap: 6px; }
+.cw-check {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #111;
+  background: #eee;
+  font-weight: 700;
+}
+.cw-check.done { background: #81c784; }
+.cw-state { padding: 0 6px; border: 1.5px solid #111; font-size: 0.72rem; font-weight: 600; background: #ffe0b2; }
+.cw-state.done { background: #c8e6c9; }
+
+@media (max-width: 520px) {
+  .cw-item { grid-template-columns: 1fr; }
+  .cw-item:has(.cw-check) { grid-template-columns: auto 1fr; }
+  .cw-item:has(.cw-check) .btn { grid-column: 1 / -1; }
+}
+
+.cw-top, .cw-strip { padding-right: var(--sig-space); }
+
+/* The offline notice floats over the world instead of taking a column of the layout. */
+.cw > .cw-offline { position: absolute; left: 12px; bottom: 64px; z-index: 5; max-width: min(360px, calc(100% - 24px)); }

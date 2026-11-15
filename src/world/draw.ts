@@ -667,6 +667,22 @@ function standing(ctx: CanvasRenderingContext2D, room: Room, x: number, y: numbe
     };
   }
   if (t === 'bars') return () => cell(ctx, dungeon, 9, 5, px, py, unit);
+  if (t === 'sign') {
+    // A wooden signpost by a map exit.
+    return () => {
+      shadow(4)();
+      ctx.fillStyle = OUTLINE;
+      ctx.fillRect(px + 6.5 * unit, py + 5 * unit, 3 * unit, 10 * unit);
+      ctx.fillRect(px + 1 * unit, py + 1 * unit, 14 * unit, 7 * unit);
+      ctx.fillStyle = '#8d6e63';
+      ctx.fillRect(px + 7 * unit, py + 6 * unit, 2 * unit, 9 * unit);
+      ctx.fillStyle = '#c8a27a';
+      ctx.fillRect(px + 2 * unit, py + 2 * unit, 12 * unit, 5 * unit);
+      ctx.fillStyle = '#5d4037';
+      ctx.fillRect(px + 4 * unit, py + 3.5 * unit, 8 * unit, unit);
+      ctx.fillRect(px + 4 * unit, py + 5 * unit, 5 * unit, unit);
+    };
+  }
   if (t === 'door') {
     // Arched door at half scale: 32 × 48 source pixels become one tile wide and one and a half tall.
     const door: Standing = () => {

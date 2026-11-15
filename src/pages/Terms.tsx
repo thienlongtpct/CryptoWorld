@@ -29,7 +29,7 @@ export function Terms() {
       <nav className="crumbs"><a href="#library">Library</a> › Dictionary</nav>
       <div className="front">
         <h1>All terms</h1>
-        <p className="prose">Pick a term to open its page. Entries marked <span className="demo-tag">demo</span> include an interactive demo. <span className="toy">TOY · NOT SECURE</span></p>
+        <p className="prose">Pick a term to open its page. Entries marked <span className="demo-tag">demo</span> include an interactive demo.</p>
         <details className="try">
           <summary>How to read an entry</summary>
           <div className="howto" style={{ padding: '4px 16px 16px' }}>

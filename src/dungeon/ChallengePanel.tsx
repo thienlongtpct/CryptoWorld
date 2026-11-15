@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useAccount } from '../account';
-import { CHALLENGE_BY_ID, challengeItemId, type Challenge, type ClassifyChoice, type ClassifyItem } from '../dungeon/challenges.ts';
+import { CHALLENGE_BY_ID, challengeItemId, sealOf, type Challenge, type ClassifyChoice, type ClassifyItem } from '../dungeon/challenges.ts';
 import { CHARACTER_BY_ID, PORTRAYAL_BADGE, portrayalNotice } from '../characters/cast';
 import { counts, shiftCh } from '../lib/crypto';
 import { Portrait } from '../world/dialogue';
@@ -104,8 +104,8 @@ export function ChallengePanel({
         setError('The answer was accepted, but the account progress could not be reloaded. Submit again. A repeated success does not add a second reward.');
         return;
       }
-      // A board stays open after a correct answer so the explanation can be read before crossing.
-      if (board) {
+      // A board, or a gate with an explanation, stays open so the explanation can be read before going on.
+      if (board || (typeof data.explanation === 'string' && data.explanation)) {
         setExplanation(typeof data.explanation === 'string' ? data.explanation : '');
         return;
       }
@@ -249,6 +249,8 @@ function guideFor(id: string) {
   if (id === 'xor') return { ...CHARACTER_BY_ID.eve, regionId: 'catacombs' };
   if (id === 'vault') return { ...CHARACTER_BY_ID.daemen, regionId: 'catacombs' };
   if (id === 'wire') return { ...CHARACTER_BY_ID.eve, regionId: 'bridge' };
+  if (id === 'seal') return { ...CHARACTER_BY_ID.faythe, regionId: 'grove' };
+  if (id === 'overlap') return { ...CHARACTER_BY_ID.carol, regionId: 'garden' };
   return undefined;
 }
 
@@ -282,7 +284,7 @@ function Board({ question, items, choices, picks, wrongRows, disabled, onPick }:
           <fieldset key={item.id} className={`cw-row${nudge ? ' again' : ''}`} disabled={disabled}>
             <legend>
               <span>{item.label}</span>
-              <code>{item.value}</code>
+              {item.value && <code>{item.value}</code>}
             </legend>
             <div className="cw-choices">
               {choices.map((choice, choiceIndex) => (
@@ -314,6 +316,7 @@ function Tools({ challenge }: { challenge: Challenge }) {
       {challenge.tools.includes('frequency') && <FrequencyTool />}
       {challenge.tools.includes('xor') && <XorTool />}
       {challenge.tools.includes('convert') && <ConvertTool />}
+      {challenge.tools.includes('seal') && challenge.params.kind === 'seal' && <SealTool target={challenge.params.word} modulus={challenge.params.modulus} />}
     </div>
   );
 }
@@ -377,6 +380,27 @@ function XorTool() {
       <label>Pad hex <input value={pad} onChange={event => setPad(event.target.value)} spellCheck={false} /></label>
       {rows.map(row => <p key={row}>{row}</p>)}
       {bytes && (!parsed || padByte === null) && <p role="status">Use hex bytes only, two digits each, separated by spaces.</p>}
+    </fieldset>
+  );
+}
+
+function SealTool({ target, modulus }: { target: string; modulus: number }) {
+  const [word, setWord] = useState('');
+  const letters = [...word.toUpperCase()].filter(ch => /[A-Z]/.test(ch));
+  const sum = letters.reduce((total, ch) => total + ch.charCodeAt(0) - 64, 0);
+  const seal = sealOf(word, modulus);
+  const goal = sealOf(target, modulus);
+  return (
+    <fieldset className="cw-tool">
+      <legend>Seal calculator</legend>
+      <p>Type a word. Each letter gets its value, A = 1 to Z = 26. The seal is the sum modulo {modulus}. {target} has seal {goal}.</p>
+      <label>Word <input value={word} onChange={event => setWord(event.target.value)} spellCheck={false} /></label>
+      {letters.length > 0 && (
+        <p>
+          {letters.map(ch => `${ch} = ${ch.charCodeAt(0) - 64}`).join(', ')}. Sum {sum}. Seal {seal}.{' '}
+          <b>{seal === goal ? `Same seal as ${target}.` : `Not the same seal as ${target}.`}</b>
+        </p>
+      )}
     </fieldset>
   );
 }

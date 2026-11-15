@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
-import { SunhacksMark } from '../components/SunhacksMark';
 
 /** Small pixel icons for the four steps, drawn on an 8 × 8 grid. */
 const ICONS: Record<'explore' | 'learn' | 'solve' | 'unlock', { rows: string[]; colors: Record<string, string> }> = {
@@ -43,6 +42,8 @@ const PLACES: { name: string; what: string; color: string }[] = [
   { name: 'Library Sanctuary', what: 'The hub, and the way into the dungeon', color: '#4f6086' },
   { name: 'Cipher Catacombs', what: 'Three gates and a treasure room', color: '#2f434c' },
   { name: 'Key Exchange Bridge', what: 'Public or private? Sort what Eve can see', color: '#4f8ccf' },
+  { name: 'Hash Forest', what: 'Forge a weak seal, then open the shrine', color: '#3a5c29' },
+  { name: 'Private Set Gardens', what: 'What does PSI reveal about each plant?', color: '#81c784' },
   { name: 'Cipher court', what: 'Caesar, Vigenère, secret sharing', color: '#b4552f' },
   { name: 'Hash crypt', what: 'Hashes, block ciphers, modes', color: '#45606b' },
   { name: 'Key citadel', what: 'Diffie–Hellman, RSA, elliptic curves', color: '#8a95a5' },
@@ -68,10 +69,6 @@ export function Landing({ user, ready, onStart, onLogin, onRegister, onBrowse }:
   return (
     <div className="lp" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="lp-card">
-        <div className="lp-top">
-          <SunhacksMark />
-          <span className="lp-tag">Toy parameters · nothing here is secure</span>
-        </div>
         <p className="lp-kicker">A cryptography adventure</p>
         <h1 id={titleId} className="lp-title">Crypto Dungeon</h1>
         <p className="lp-lede">

@@ -166,7 +166,7 @@ export function DiffieHellmanVis() {
       { status: <>He sends B in the clear.</>, line: 4 },
       { status: <>Alice raises B to her secret: K = {Ka}.</>, line: 5 },
       { status: <>Bob raises A to his secret: K = {Kb}.</>, line: 6 },
-      { status: Ka === Kb ? <>Both hold the same key K = {Ka}, because (gᵇ)ᵃ = (gᵃ)ᵇ. These parameters are educational, not secure.</> : <>The two calculations disagree: Alice got {Ka} and Bob got {Kb}.</>, line: 7 },
+      { status: Ka === Kb ? <>Both hold the same key K = {Ka}, because (gᵇ)ᵃ = (gᵃ)ᵇ.</> : <>The two calculations disagree: Alice got {Ka} and Bob got {Kb}.</>, line: 7 },
     ], view);
   }, [ab]);
   return (

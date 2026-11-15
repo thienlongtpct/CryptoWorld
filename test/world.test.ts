@@ -143,8 +143,8 @@ test('walls, building fronts, and NPCs stop the body before the sprite overlaps 
 });
 
 test('doors follow login and solved gates', () => {
-  assert.deepEqual(reachableRooms(null, {}), ['grounds', 'ciphers', 'hashes', 'keys', 'compute', 'sets', 'sanctuary']);
-  assert.deepEqual(reachableRooms('ada', {}), ['grounds', 'ciphers', 'hashes', 'keys', 'compute', 'sets', 'sanctuary', 'bridge', 'hall', 'caesar']);
+  assert.deepEqual(reachableRooms(null, {}), ['grounds', 'ciphers', 'hashes', 'keys', 'compute', 'sets', 'sanctuary', 'forest', 'gardens']);
+  assert.deepEqual(reachableRooms('ada', {}), ['grounds', 'ciphers', 'hashes', 'keys', 'compute', 'sets', 'sanctuary', 'bridge', 'forest', 'gardens', 'hall', 'caesar']);
   const caesar = { 'dungeon-caesar': 'done' };
   assert.equal(canEnter('xor', 'ada', caesar), true);
   assert.equal(canEnter('final', 'ada', caesar), false);
@@ -166,7 +166,7 @@ test('a locked room restores the last safe spawn', () => {
 });
 
 test('public challenges grade against an independent solution and hide the words', () => {
-  const words = Object.fromEntries(CHALLENGES.filter(challenge => challenge.params.kind !== 'classify').map(challenge => [challenge.id, expectedWord(challenge.id)]));
+  const words = Object.fromEntries(CHALLENGES.filter(challenge => ['shift', 'xor', 'xor-shift'].includes(challenge.params.kind)).map(challenge => [challenge.id, expectedWord(challenge.id)]));
   assert.deepEqual(words, { caesar: 'hello', xor: 'prism', vault: 'glyph' });
   for (const [id, word] of Object.entries(words)) {
     assert.equal(grade(id, word).correct, true);
@@ -275,5 +275,41 @@ test('Alice and Bob appear once, and every NPC in a room can be asked a question
   for (const { room, spot } of placed) {
     const prepared = prepareNpc({ characterId: spot.characterId, regionId: spot.regionId, mode: 'explain', scenario: 'passive', question: 'Hello?' });
     assert.ok(prepared.ok, `${room}: ${spot.id} cannot be asked (${prepared.ok ? '' : prepared.error})`);
+  }
+});
+
+test('the forest seal accepts any collision with LEAF and nothing else', async () => {
+  const { sealOf } = await import('../src/dungeon/challenges.ts');
+  assert.equal(sealOf('LEAF'), 24);
+  for (const word of ['flea', 'Sunhacks{FLEA}', 'zwa']) {
+    if (word === 'zwa') assert.equal(sealOf(word), 24, 'a word with a different sum that still leaves 24');
+    assert.equal(grade('seal', word).correct, true, word);
+  }
+  for (const word of ['leaf', 'LEAF', 'deer', 'ab', 'abcdefghijklm']) assert.equal(grade('seal', word).correct, false, word);
+  assert.match(grade('seal', 'flea').explanation, /collision/);
+});
+
+test('the gardens board names only the wrong plants', () => {
+  const right = { rose: 'absent', iris: 'shared', lily: 'absent', sage: 'shared', mint: 'shared', fern: 'absent', oak: 'nothing', yew: 'nothing' };
+  assert.equal(grade('overlap', right).correct, true);
+  const wrong = grade('overlap', { ...right, oak: 'absent', rose: 'nothing' });
+  assert.equal(wrong.correct, false);
+  assert.deepEqual([...wrong.wrong].sort(), ['oak', 'rose']);
+  assert.doesNotMatch(JSON.stringify(wrong), /"(shared|absent|nothing)"/);
+  const source = readFileSync(new URL('../src/dungeon/challenges.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /rose: 'absent'|oak: 'nothing'/);
+});
+
+test('edge exits connect the grounds to the forest and the gardens both ways', () => {
+  for (const [exit, room] of [['to-forest', 'forest'], ['to-gardens', 'gardens']] as const) {
+    const out = ROOMS.grounds.spots.find(spot => spot.id === exit)!;
+    assert.equal(out.auto, true);
+    assert.equal(out.to, room);
+    assert.ok(out.arrive && fits(ROOMS[room].map, out.arrive.x, out.arrive.y));
+    const back = ROOMS[room].spots.find(spot => spot.kind === 'door' && spot.to === 'grounds')!;
+    assert.ok(back.arrive && fits(ROOMS.grounds.map, back.arrive.x, back.arrive.y));
+    // Arriving next to an exit must not send the player straight back.
+    const partner = ROOMS[room].spots.find(spot => spot.kind === 'door' && spot.to === 'grounds')!;
+    assert.ok(Math.max(Math.abs(out.arrive.x - partner.x), Math.abs(out.arrive.y - partner.y)) >= 0.6);
   }
 });

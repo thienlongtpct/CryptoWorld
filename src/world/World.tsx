@@ -308,6 +308,12 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
         pos.current = step(current, pos.current.x, pos.current.y, (dx / length) * 5.2 * dt, (dy / length) * 5.2 * dt, progressRef.current);
       }
       const spot = stand(current, pos.current.x, pos.current.y);
+      // Walking onto an edge exit travels at once, without pressing a key.
+      if (spot?.auto && !uiLock.current && Math.max(Math.abs(spot.x - pos.current.x), Math.abs(spot.y - pos.current.y)) < 0.6) {
+        interactRef.current(spot);
+        frame = requestAnimationFrame(tick);
+        return;
+      }
       if ((spot?.id ?? '') !== nearId.current) {
         nearId.current = spot?.id ?? '';
         nearRef.current = spot;
@@ -580,6 +586,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
           progress={merged}
           confirmReset={confirmReset}
           onAskConfirm={() => setConfirmReset(true)}
+          onCancelReset={() => setConfirmReset(false)}
           onReset={() => {
             setExtra({});
             applyPlace(homePlace());
@@ -592,7 +599,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
         />
       )}
       {settings && (
-        <Panel title="Settings" closeLabel="Close" onClose={() => setSettings(false)}>
+        <Panel title="Settings" onClose={() => setSettings(false)}>
           <label className="cw-search">Motion
             <select value={motion} onChange={event => { const value = event.target.value as 'system' | 'reduce' | 'full'; setMotion(value); saveMotion(value); }}>
               <option value="system">Follow the system setting</option>
@@ -605,7 +612,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
         </Panel>
       )}
       {preview && (
-        <Panel title={preview.name} closeLabel="Close" onClose={() => setPreview(null)}>
+        <Panel title={preview.name} onClose={() => setPreview(null)}>
           <p>{user ? preview.signed : preview.guest}</p>
           {preview.summary && <p>{preview.summary}</p>}
           {preview.lesson && (
@@ -652,14 +659,18 @@ function buttonFor(spot: Spot, user: string | null, progress: Record<string, str
   return `Enter ${spot.name}`;
 }
 
-function Panel({ title, closeLabel, onClose, focusClose = false, children }: { title: string; closeLabel: string; onClose: () => void; focusClose?: boolean; children: ReactNode }) {
+/** A titled panel with a close button in the header, a body, and an ordered row of actions at the bottom. */
+function Panel({ title, onClose, footer, wide = false, children }: { title: string; onClose: () => void; footer?: ReactNode; wide?: boolean; children: ReactNode }) {
   const titleId = useId();
   return (
     <div className="cw-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <div className="cw-card">
-        <h2 id={titleId}>{title}</h2>
-        {children}
-        <button type="button" className="btn ghost" onClick={onClose} autoFocus={focusClose}>{closeLabel}</button>
+      <div className={`cw-card cw-panel${wide ? ' wide' : ''}`}>
+        <header className="cw-panel-head">
+          <h2 id={titleId}>{title}</h2>
+          <button type="button" className="cw-x" aria-label={`Close ${title}`} onClick={onClose}>✕</button>
+        </header>
+        <div className="cw-panel-body">{children}</div>
+        {footer && <footer className="cw-panel-foot">{footer}</footer>}
       </div>
     </div>
   );
@@ -673,66 +684,90 @@ function RoomList({ user, progress, onClose, onGo, onFuture, onOpen }: {
   onFuture: (spot: Spot) => void;
   onOpen: (route: string) => void;
 }) {
-  const future = ROOMS.grounds.spots.filter(spot => spot.kind === 'future');
+  const future = ROOM_LIST.flatMap(id => ROOMS[id].spots.filter(spot => spot.kind === 'future'));
+  const wings = [...new Set(ROOM_LIST.map(id => ROOMS[id].wing))];
   return (
-    <Panel title="Rooms" closeLabel="Close" onClose={onClose}>
-      <p>Every room can be opened from this list when its gate is unlocked. You do not have to walk there.</p>
-      <div className="cw-actions">
-        {ROOM_LIST.map((id, index) => {
-          const room = ROOMS[id];
-          const allowed = canEnter(id, user, progress);
-          return (
-            <article key={id} className="cw-topic">
-              <b>{room.wing}: {room.name}</b>
-              <p>{room.objective}</p>
-              <button type="button" className="btn" autoFocus={index === 0} disabled={!allowed} onClick={() => onGo(id)}>
-                {allowed ? `Go to ${room.name}` : user ? 'Locked until the earlier gate is solved' : 'Log in to enter'}
-              </button>
-            </article>
-          );
-        })}
-        {future.map(spot => (
-          <article key={spot.id} className="cw-topic">
-            <b>{spot.name}</b>
-            <p>{spot.summary}</p>
-            <button type="button" className="btn ghost" onClick={() => onFuture(spot)}>Read the entrance</button>
-            {spot.lesson && <button type="button" className="btn ghost" onClick={() => onOpen(spot.lesson!)}>{user ? 'Open the related lesson' : 'Log in to open the related lesson'}</button>}
-          </article>
-        ))}
-      </div>
+    <Panel title="Map" onClose={onClose} wide>
+      <p className="cw-panel-lede">Jump to any room you have unlocked. You do not have to walk there.</p>
+      {wings.map(wing => (
+        <section key={wing} className="cw-group">
+          <h3>{wing}</h3>
+          {ROOM_LIST.filter(id => ROOMS[id].wing === wing).map(id => {
+            const room = ROOMS[id];
+            const allowed = canEnter(id, user, progress);
+            return (
+              <div key={id} className={`cw-item${allowed ? '' : ' locked'}`}>
+                <div>
+                  <b>{room.name}</b>
+                  <p>{allowed ? room.objective : user ? 'Locked: solve the gate before it first.' : 'Log in to enter.'}</p>
+                </div>
+                <button type="button" className="btn" disabled={!allowed} onClick={() => onGo(id)}>{allowed ? 'Go' : 'Locked'}</button>
+              </div>
+            );
+          })}
+        </section>
+      ))}
+      {future.length > 0 && (
+        <section className="cw-group">
+          <h3>Coming later</h3>
+          {future.map(spot => (
+            <div key={spot.id} className="cw-item locked">
+              <div>
+                <b>{spot.name}</b>
+                <p>{spot.summary}</p>
+              </div>
+              <div className="cw-item-actions">
+                <button type="button" className="btn ghost" onClick={() => onFuture(spot)}>Read</button>
+                {spot.lesson && <button type="button" className="btn ghost" onClick={() => onOpen(spot.lesson!)}>Lesson</button>}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
     </Panel>
   );
 }
 
-function Journal({ user, progress, confirmReset, onAskConfirm, onReset, onOpen, onClose }: {
+function Journal({ user, progress, confirmReset, onAskConfirm, onCancelReset, onReset, onOpen, onClose }: {
   user: string | null;
   progress: Record<string, string>;
   confirmReset: boolean;
   onAskConfirm: () => void;
+  onCancelReset: () => void;
   onReset: () => void;
   onOpen: (route: string) => void;
   onClose: () => void;
 }) {
+  const all = Object.values(CHALLENGE_BY_ID);
+  const done = all.filter(challenge => progress[challengeItemId(challenge.id)] === 'done').length;
   return (
-    <Panel title="Journal" closeLabel="Close" onClose={onClose}>
-      {!user && <p>Log in to save solved gates. This journal can still list them.</p>}
-      <div className="cw-actions">
-        {Object.values(CHALLENGE_BY_ID).map(challenge => {
-          const done = progress[challengeItemId(challenge.id)] === 'done';
-          return (
-            <article key={challenge.id} className="cw-topic">
-              <b>{challenge.title}</b>
-              <p>{challenge.wing} · {done ? 'Solved on your account.' : 'Not solved.'}</p>
-              <p>{challenge.concepts.join(' · ')}</p>
-              <button type="button" className="btn" onClick={() => onOpen(challenge.lesson)}>{user ? 'Open the lesson' : 'Log in to open the lesson'}</button>
-            </article>
-          );
-        })}
-      </div>
-      <p>Reset checkpoint returns you to the Library Sanctuary. Solved gates stay on the account.</p>
-      {confirmReset
-        ? <button type="button" className="btn" onClick={onReset}>Confirm reset</button>
-        : <button type="button" className="btn ghost" onClick={onAskConfirm}>Reset checkpoint</button>}
+    <Panel
+      title="Journal"
+      onClose={onClose}
+      wide
+      footer={confirmReset
+        ? <><button type="button" className="btn" onClick={onReset}>Yes, reset my position</button><button type="button" className="btn ghost" onClick={onCancelReset}>Keep it</button></>
+        : <button type="button" className="btn ghost" onClick={onAskConfirm}>Reset position to the start</button>}
+    >
+      <p className="cw-panel-lede">{user ? `${done} of ${all.length} challenges solved on your account.` : 'Log in to save solved challenges. You can still read them here.'}</p>
+      {[...new Set(all.map(challenge => challenge.wing))].map(wing => (
+        <section key={wing} className="cw-group">
+          <h3>{wing}</h3>
+          {all.filter(challenge => challenge.wing === wing).map(challenge => {
+            const solved = progress[challengeItemId(challenge.id)] === 'done';
+            return (
+              <div key={challenge.id} className="cw-item">
+                <div>
+                  <b>{challenge.title} <span className={`cw-state${solved ? ' done' : ''}`}>{solved ? 'Solved' : 'Not solved'}</span></b>
+                  <p>{challenge.concepts.join(' · ')}</p>
+                </div>
+                <button type="button" className="btn ghost" onClick={() => onOpen(challenge.lesson)}>{TOPIC_BY_ID[challenge.lesson]?.title ?? 'Lesson'}</button>
+              </div>
+            );
+          })}
+        </section>
+      ))}
+      {confirmReset && <p className="cw-panel-lede">This moves you back to the start. Solved challenges stay on your account.</p>}
     </Panel>
   );
 }
@@ -744,20 +779,34 @@ function VaultSummary({ progress, onReplay, onHub, onOpen, onClose }: {
   onOpen: (route: string) => void;
   onClose: () => void;
 }) {
-  const solved = CATACOMB_GATES.map(id => CHALLENGE_BY_ID[id]).filter(challenge => progress[challengeItemId(challenge.id)] === 'done');
+  const gates = CATACOMB_GATES.map(id => CHALLENGE_BY_ID[id]);
+  const solved = gates.filter(challenge => progress[challengeItemId(challenge.id)] === 'done').length;
   return (
-    <Panel title="Treasure room" closeLabel="Close" onClose={onClose}>
-      <p>Gates solved: {solved.length} of 3.</p>
-      <ul className="cw-sources">
-        {solved.map(challenge => <li key={challenge.id}>{challenge.title}: {challenge.concepts.join(', ')}</li>)}
-      </ul>
-      <div className="cw-actions">
-        {solved.map(challenge => (
-          <button key={challenge.id} type="button" className="btn ghost" onClick={() => onOpen(challenge.lesson)}>Review {TOPIC_BY_ID[challenge.lesson]?.title ?? challenge.lesson}</button>
-        ))}
-        <button type="button" className="btn" onClick={onReplay}>Replay the gates</button>
-        <button type="button" className="btn" onClick={onHub}>Return to the Library</button>
-      </div>
+    <Panel
+      title="Treasure room"
+      onClose={onClose}
+      wide
+      footer={<>
+        <button type="button" className="btn" autoFocus onClick={onHub}>Return to the Sanctuary</button>
+        <button type="button" className="btn ghost" onClick={onReplay}>Replay the gates</button>
+      </>}
+    >
+      <p className="cw-panel-lede">{solved === gates.length ? 'All three gates are open. Here is what you used to open them.' : `Gates solved: ${solved} of ${gates.length}.`}</p>
+      <section className="cw-group">
+        {gates.map(challenge => {
+          const done = progress[challengeItemId(challenge.id)] === 'done';
+          return (
+            <div key={challenge.id} className={`cw-item${done ? '' : ' locked'}`}>
+              <span className={`cw-check${done ? ' done' : ''}`} aria-hidden="true">{done ? '✓' : '·'}</span>
+              <div>
+                <b>{challenge.title}</b>
+                <p>{challenge.concepts.join(' · ')}</p>
+              </div>
+              <button type="button" className="btn ghost" onClick={() => onOpen(challenge.lesson)}>Review {TOPIC_BY_ID[challenge.lesson]?.title ?? 'lesson'}</button>
+            </div>
+          );
+        })}
+      </section>
     </Panel>
   );
 }

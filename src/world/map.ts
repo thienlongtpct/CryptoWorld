@@ -6,14 +6,15 @@ export type Tile =
   // Indoor decor
   | 'paving' | 'carpet' | 'grate' | 'vent' | 'banner' | 'bars' | 'pillar' | 'crystal'
   // Buildings on the grounds. Each footprint is one rectangle of the same tile, with its door on the bottom row.
-  | 'library' | 'keep' | 'crypt' | 'temple' | 'cabin' | 'greenhouse';
+  | 'library' | 'keep' | 'crypt' | 'temple' | 'cabin' | 'greenhouse'
+  | 'sign';
 
 export const BUILDINGS = new Set<Tile>(['library', 'keep', 'crypt', 'temple', 'cabin', 'greenhouse']);
 
 const SOLID = new Set<Tile>([
   'wall', 'torch', 'shelf', 'desk', 'chest', 'gate', 'tree', 'water', 'block', 'pedestal', 'mix',
   'bush', 'rock', 'deadtree', 'vent', 'banner', 'bars', 'pillar', 'crystal',
-  'library', 'keep', 'crypt', 'temple', 'cabin', 'greenhouse',
+  'library', 'keep', 'crypt', 'temple', 'cabin', 'greenhouse', 'sign',
 ]);
 
 /**
@@ -31,6 +32,7 @@ const SHAPES: Partial<Record<Tile, [number, number, number, number]>> = {
   desk: [0, 0.3, 1, 0.95],
   chest: [0.1, 0.25, 0.9, 0.95],
   pedestal: [0.2, 0.45, 0.8, 0.95],
+  sign: [0.3, 0.5, 0.7, 1],
 };
 
 /** The player's feet, relative to their position: half width, then the top and bottom offsets. */
@@ -58,6 +60,8 @@ export interface Spot {
   to?: string;
   /** Where the player appears in the room behind this door: in front of the matching door there. */
   arrive?: { x: number; y: number };
+  /** An exit at the edge of a map: walking onto it travels, without pressing a key. */
+  auto?: boolean;
   requires?: string[];
   gate?: { x: number; y: number };
   lesson?: string;
