@@ -220,7 +220,7 @@ export function ChallengePanel({
         {user && guide && (
           <form className="cw-ask" onSubmit={ask}>
             <div className="cw-who">
-              <Portrait portrait={guide.portrait} />
+              <Portrait id={guide.id} />
               <div>
                 <b>Ask {guide.name}</b>
                 {guide.type === 'portrayal' && <span className="cw-badge">{PORTRAYAL_BADGE}</span>}

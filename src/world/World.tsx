@@ -59,7 +59,6 @@ const KEY_DIR: Record<string, Direction> = {
   arrowdown: 'down', s: 'down',
 };
 
-const PLAYER = { hair: '#F6D46B', shirt: '#1565C0', pants: '#37474F' };
 
 function typingTarget(target: EventTarget | null): boolean {
   return !!(target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]');
@@ -346,6 +345,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
             time: now,
             reduced,
             goal: goalSpotRef.current,
+            walking: !uiLock.current && keys.current.size > 0,
           });
         }
       }
@@ -460,7 +460,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
           <canvas ref={canvasRef} aria-hidden="true" />
           <header className="cw-top">
             <div className="cw-identity">
-              <Portrait portrait={PLAYER} />
+              <Portrait id="player" />
               <div className="cw-where">
                 <h1 className="cw-title">Crypto Dungeon</h1>
                 <p className="cw-place">
@@ -601,7 +601,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
             </select>
           </label>
           <p>Reduced motion keeps the torches still and skips the gate-opening pause. Paths and objects also have text labels.</p>
-          <p>Tiles are from Anokolisa’s free Pixel Crawler pack. Alice, Bob, and Shannon are from Kenney’s CC0 roguelike characters.</p>
+          <p>Tiles are from Anokolisa’s free Pixel Crawler pack. Every character is drawn by the game from one shared pixel template, so the cast and the player match.</p>
         </Panel>
       )}
       {preview && (

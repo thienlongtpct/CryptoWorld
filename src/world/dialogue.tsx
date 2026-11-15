@@ -10,33 +10,26 @@ import {
   portrayalNotice,
   type AskMode,
   type Character,
-  type Portrait as PortraitColors,
   type Scenario,
 } from '../characters/cast';
 import { TOPIC_BY_ID } from '../vis/registry';
+import { sprite } from '../characters/sprites';
 import type { Spot } from './map';
 
-const ROWS = [
-  '..hhh..',
-  '.hhhhh.',
-  '..sss..',
-  '.sssss.',
-  'sssssss',
-  '.ss.ss.',
-  '..p.p..',
-  '.pp.pp.',
-];
-
-export function Portrait({ portrait }: { portrait: PortraitColors }) {
-  return (
-    <span className="cw-portrait" aria-hidden="true">
-      {ROWS.map((row, y) => [...row].map((cell, x) => {
-        const glasses = portrait.glasses && y === 2 && (x === 2 || x === 4);
-        const color = glasses ? '#111' : cell === 'h' ? portrait.hair : cell === 's' ? portrait.shirt : cell === 'p' ? portrait.pants : 'transparent';
-        return <i key={`${x}-${y}`} style={{ background: color }} />;
-      }))}
-    </span>
-  );
+/** Head and shoulders of the character's world sprite, so the dialogue and the world match. */
+export function Portrait({ id, size = 40 }: { id: string; size?: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Rows 0 to 15 of the 16 × 22 sprite: from the top of the hat down to the hands.
+    ctx.drawImage(sprite(id, 'down', 0), 0, 0, 16, 16, 0, 0, canvas.width, canvas.height);
+  }, [id]);
+  return <canvas ref={ref} className="cw-portrait" width={64} height={64} style={{ width: size, height: size }} aria-hidden="true" />;
 }
 
 function Panel({ title, closeLabel, onClose, focusClose = false, backdrop = false, cardClass = '', children }: {
@@ -84,7 +77,7 @@ function CharacterCard({ character, onOpen }: { character: Character; onOpen: (r
   return (
     <article className="cw-topic">
       <div className="cw-who">
-        <Portrait portrait={character.portrait} />
+        <Portrait id={character.id} />
         <div>
           <b>{character.name}</b>
           {character.type === 'portrayal' && <span className="cw-badge">{PORTRAYAL_BADGE}</span>}
@@ -147,7 +140,7 @@ export function Talk({ spot, user, onClose, onOpen, onDirectory }: {
     >
       <div className="cw-dialog" ref={boxRef} tabIndex={-1}>
         <header className="cw-dialog-head">
-          {character && <Portrait portrait={character.portrait} />}
+          {character && <Portrait id={character.id} />}
           <div className="cw-dialog-name">
             <h2 id={titleId}>{character?.name ?? spot.name}</h2>
             <p>

@@ -3,17 +3,8 @@ import dungeonUrl from '../assets/pixel-crawler/dungeon.png';
 import waterUrl from '../assets/pixel-crawler/water.png';
 import vegetationUrl from '../assets/pixel-crawler/vegetation.png';
 import logUrl from '../assets/pixel-crawler/log.png';
-import knightUrl from '../assets/pixel-crawler/people/knight.png';
-import skeletonUrl from '../assets/pixel-crawler/people/skeleton.png';
-import archerUrl from '../assets/pixel-crawler/people/archer.png';
-import warriorUrl from '../assets/pixel-crawler/people/warrior.png';
-import mageUrl from '../assets/pixel-crawler/people/mage.png';
-import rogueUrl from '../assets/pixel-crawler/people/rogue.png';
-import wizardUrl from '../assets/pixel-crawler/people/wizard.png';
-import aliceUrl from '../assets/pixel-crawler/people/alice.png';
-import bobUrl from '../assets/pixel-crawler/people/bob.png';
-import shannonUrl from '../assets/pixel-crawler/people/shannon.png';
 import { CHARACTER_BY_ID } from '../characters/cast';
+import { SPRITE_H, SPRITE_W, sprite, type Facing } from '../characters/sprites';
 import { BUILDINGS, type Spot, type Tile } from './map';
 
 export interface PaintState {
@@ -27,6 +18,8 @@ export interface PaintState {
   reduced: boolean;
   insetTop: number;
   insetBottom: number;
+  /** True while the player is walking, for the walk cycle. */
+  walking?: boolean;
   /** The spot the HUD's next goal points at, marked with a ring and an arrow. */
   goal?: Spot | null;
 }
@@ -42,28 +35,6 @@ const dungeon = load(dungeonUrl);
 const water = load(waterUrl);
 const vegetation = load(vegetationUrl);
 const logs = load(logUrl);
-const people: Record<string, HTMLImageElement> = {
-  player: load(knightUrl),
-  alice: load(aliceUrl),
-  bob: load(bobUrl),
-  shannon: load(shannonUrl),
-  eve: load(archerUrl),
-  caesar: load(skeletonUrl),
-  vigenere: load(warriorUrl),
-  kindi: load(mageUrl),
-  trent: load(wizardUrl),
-  peggy: load(rogueUrl),
-  victor: load(rogueUrl),
-  shamir: load(mageUrl),
-  daemen: load(wizardUrl),
-};
-
-/** Characters that share a sprite get their own colours, so no two people in a room look alike. */
-const TINTS: Record<string, string> = {
-  victor: 'hue-rotate(150deg) saturate(1.2)',
-  shamir: 'hue-rotate(150deg)',
-  daemen: 'hue-rotate(150deg)',
-};
 
 /** Pixel rectangles in vegetation.png: [x, y, w, h]. Colour variants sit 48 px apart. */
 const VEG = {
@@ -199,10 +170,16 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   for (const spot of state.spots) {
     const character = spot.characterId ? CHARACTER_BY_ID[spot.characterId] : undefined;
     if (character) {
-      sprites.push({ y: spot.y, draw: () => drawActor(ctx, spot.x, spot.y, camX, camY, tile, 'down', people[character.id] ?? people.player, TINTS[character.id]) });
+      // NPCs turn to face the player when the player comes close.
+      const dx = state.x - spot.x;
+      const dy = state.y - spot.y;
+      const near = Math.hypot(dx, dy) < 3;
+      const facing: Facing = !near ? 'down' : Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy < 0 ? 'up' : 'down';
+      sprites.push({ y: spot.y, draw: () => drawActor(ctx, spot.x, spot.y, camX, camY, unit, sprite(character.id, facing, 0)) });
     }
   }
-  sprites.push({ y: state.y, draw: () => drawActor(ctx, state.x, state.y, camX, camY, tile, state.facing, people.player) });
+  const step = state.walking && !state.reduced ? [1, 0, 2, 0][Math.floor(state.time / 130) % 4] : 0;
+  sprites.push({ y: state.y, draw: () => drawActor(ctx, state.x, state.y, camX, camY, unit, sprite('player', state.facing, step)) });
   sprites.sort((a, b) => a.y - b.y);
   for (const sprite of sprites) sprite.draw();
 
@@ -1072,44 +1049,19 @@ function drawLight(
   ctx.restore();
 }
 
-function drawActor(
-  ctx: CanvasRenderingContext2D,
-  worldX: number,
-  worldY: number,
-  camX: number,
-  camY: number,
-  tile: number,
-  facing: 'up' | 'down' | 'left' | 'right',
-  image: HTMLImageElement,
-  tint?: string,
-) {
-  if (!ready(image)) return;
-  // Fit the sprite to the tile so a person stands in the room instead of covering it.
-  let height = tile * 1.2;
-  let width = image.naturalWidth * (height / image.naturalHeight);
-  if (width > tile * 1.15) {
-    width = tile * 1.15;
-    height = image.naturalHeight * (width / image.naturalWidth);
-  }
+/** A person at the same pixel scale as the tiles, standing on a soft shadow. */
+function drawActor(ctx: CanvasRenderingContext2D, worldX: number, worldY: number, camX: number, camY: number, unit: number, frame: HTMLCanvasElement) {
+  const tile = 16 * unit;
   const footX = (worldX - camX) * tile;
   const footY = (worldY + 0.35 - camY) * tile;
   ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
   ctx.beginPath();
-  ctx.ellipse(footX, footY - tile * 0.04, tile * 0.32, tile * 0.11, 0, 0, Math.PI * 2);
+  ctx.ellipse(footX, footY - unit, 5.5 * unit, 2 * unit, 0, 0, Math.PI * 2);
   ctx.fill();
-  const dx = Math.round(footX - width / 2);
-  const dy = Math.round(footY - height);
-  ctx.save();
+  const w = SPRITE_W * unit;
+  const h = SPRITE_H * unit;
   ctx.imageSmoothingEnabled = false;
-  if (tint) ctx.filter = tint;
-  if (facing === 'left') {
-    ctx.translate(dx + width, dy);
-    ctx.scale(-1, 1);
-    ctx.drawImage(image, 0, 0, width, height);
-  } else {
-    ctx.drawImage(image, dx, dy, width, height);
-  }
-  ctx.restore();
+  ctx.drawImage(frame, Math.round(footX - w / 2), Math.round(footY - h + unit), Math.round(w), Math.round(h));
 }
 
 /** A bouncing gold arrow above the goal's label, or below the goal pointing up when there is no room above. */
@@ -1209,8 +1161,10 @@ function drawTag(
   tile: number,
 ) {
   const x = Math.round((spotX - camX) * tile);
-  const y = Math.round((spotY - 1.45 - camY) * tile);
   const font = Math.max(8, tile * 0.32);
+  let y = Math.round((spotY - 1.45 - camY) * tile);
+  // No room above (a person on the top row): put the label under their feet instead.
+  if (y - font - Math.max(2, tile * 0.08) * 2 < 0) y = Math.round((spotY + 0.55 - camY) * tile) + font;
   ctx.font = `${font}px Silkscreen, monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';

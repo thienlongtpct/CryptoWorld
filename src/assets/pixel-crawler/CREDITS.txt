@@ -1,9 +1,7 @@
-Pixel Crawler free pack by Anokolisa.
-Characters are the free clothed heroes and skeletons from that pack. The bare base body is not used.
+Pixel Crawler free pack by Anokolisa: tiles, walls, doors, water, and vegetation.
 Source: https://anokolisa.itch.io/free-pixel-art-asset-pack-topdown-tileset-rpg-16x16-sprites
 The pack may be used in a project. The art itself is not for resale.
 Credit is optional. The author asks to be contacted at AnomalyPixel@gmail.com when credited.
 
-Alice, Bob, and Shannon are clothed characters from Kenney's Roguelike Characters pack (CC0).
-Source: https://kenney.nl/assets/roguelike-characters
-Credit is optional.
+Characters are not from an asset pack. Every person, including the player, is drawn by the game
+from one 16 x 22 pixel template in src/characters/sprites.ts, so the whole cast shares one style.
