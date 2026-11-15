@@ -676,13 +676,15 @@ function standing(ctx: CanvasRenderingContext2D, room: Room, x: number, y: numbe
       }
       ctx.drawImage(dungeon, 0, 7 * 16, 32, 48, px, py - tile / 2, tile, tile * 1.5);
     };
-    // Just after the building wall, and before anyone standing in the doorway.
-    door.depth = y + 0.01;
+    // A door is flat against its wall, so people around it are always drawn in front of it.
+    // A building door only has to come after the building's own front wall.
+    door.depth = BUILDINGS.has(at(room, x, y - 1) as Tile) ? y + 0.001 : y - 0.6;
     return door;
   }
   if (t === 'gate') {
     const open = room.open.has(`${x},${y}`);
-    return () => {
+    // Like a door, the gate's arch rises above its tile: keep it behind people standing next to it.
+    const gate: Standing = () => {
       if (!ready(dungeon)) {
         fill(ctx, open ? '#81c784' : '#212121', px, py, tile);
         return;
@@ -690,6 +692,8 @@ function standing(ctx: CanvasRenderingContext2D, room: Room, x: number, y: numbe
       if (open) ctx.drawImage(dungeon, 0, 10 * 16, 32, 48, px, py - tile / 2, tile, tile * 1.5);
       else ctx.drawImage(dungeon, 2 * 16, 7 * 16, 32, 48, px, py - tile / 2, tile, tile * 1.5);
     };
+    gate.depth = y - 0.6;
+    return gate;
   }
   if (t === 'chest') {
     return () => {
