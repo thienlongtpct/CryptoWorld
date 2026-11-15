@@ -30,23 +30,32 @@ const SDK_INSTALL =
   + '@aws-sdk/client-dynamodb@3.1169.0 @aws-sdk/lib-dynamodb@3.1169.0 '
   + '@aws-sdk/client-sqs@3.1169.0 @aws-sdk/client-secrets-manager@3.1169.0 pg@8.23.1';
 
+/**
+ * Client files the API imports at runtime (server/*.mjs → src/...), with their own imports.
+ * test/lambda-bundle.test.mjs follows the server's imports and fails if one is missing here.
+ */
+export const API_SRC_FILES = [
+  'src/data/catalog.json',
+  'src/data/entries.ts',
+  'src/characters/cast.ts',
+  'src/characters/views.ts',
+  'src/lib/crypto.ts',
+  'src/dungeon/challenges.ts',
+  'src/vis/registry.ts',
+  'src/world/locations.ts',
+];
+
+const API_SRC_DIRS = [...new Set(API_SRC_FILES.map(file => path.posix.dirname(file)))];
+
 function stageApi(outputDir: string) {
   fs.mkdirSync(path.join(outputDir, 'server'), { recursive: true });
-  fs.mkdirSync(path.join(outputDir, 'src/data'), { recursive: true });
-  fs.mkdirSync(path.join(outputDir, 'src/characters'), { recursive: true });
-  fs.mkdirSync(path.join(outputDir, 'src/lib'), { recursive: true });
-  fs.mkdirSync(path.join(outputDir, 'src/dungeon'), { recursive: true });
+  for (const dir of API_SRC_DIRS) fs.mkdirSync(path.join(outputDir, dir), { recursive: true });
   fs.copyFileSync(path.join(repoRoot, 'package.json'), path.join(outputDir, 'package.json'));
   for (const name of fs.readdirSync(path.join(repoRoot, 'server'))) {
     if (!name.endsWith('.mjs')) continue;
     fs.copyFileSync(path.join(repoRoot, 'server', name), path.join(outputDir, 'server', name));
   }
-  fs.copyFileSync(path.join(repoRoot, 'src/data/catalog.json'), path.join(outputDir, 'src/data/catalog.json'));
-  fs.copyFileSync(path.join(repoRoot, 'src/data/entries.ts'), path.join(outputDir, 'src/data/entries.ts'));
-  fs.copyFileSync(path.join(repoRoot, 'src/characters/cast.ts'), path.join(outputDir, 'src/characters/cast.ts'));
-  fs.copyFileSync(path.join(repoRoot, 'src/characters/views.ts'), path.join(outputDir, 'src/characters/views.ts'));
-  fs.copyFileSync(path.join(repoRoot, 'src/lib/crypto.ts'), path.join(outputDir, 'src/lib/crypto.ts'));
-  fs.copyFileSync(path.join(repoRoot, 'src/dungeon/challenges.ts'), path.join(outputDir, 'src/dungeon/challenges.ts'));
+  for (const file of API_SRC_FILES) fs.copyFileSync(path.join(repoRoot, file), path.join(outputDir, file));
   // Lambda needs DynamoDB + SQS + Secrets Manager clients and pg (TigerData) in the asset.
   execSync(SDK_INSTALL, { cwd: outputDir, stdio: 'inherit' });
 }
@@ -54,13 +63,10 @@ function stageApi(outputDir: string) {
 const apiBundleCommand = [
   'bash', '-c',
   [
-    'mkdir -p /asset-output/server /asset-output/src/data /asset-output/src/characters /asset-output/src/lib /asset-output/src/dungeon',
+    `mkdir -p /asset-output/server ${API_SRC_DIRS.map(dir => `/asset-output/${dir}`).join(' ')}`,
     'cp package.json /asset-output/package.json',
     'cp server/*.mjs /asset-output/server/',
-    'cp src/data/catalog.json src/data/entries.ts /asset-output/src/data/',
-    'cp src/characters/cast.ts src/characters/views.ts /asset-output/src/characters/',
-    'cp src/lib/crypto.ts /asset-output/src/lib/',
-    'cp src/dungeon/challenges.ts /asset-output/src/dungeon/',
+    ...API_SRC_FILES.map(file => `cp ${file} /asset-output/${file}`),
     'cd /asset-output && npm install --omit=dev --no-package-lock '
       + '@aws-sdk/client-dynamodb@3.1169.0 @aws-sdk/lib-dynamodb@3.1169.0 '
       + '@aws-sdk/client-sqs@3.1169.0 @aws-sdk/client-secrets-manager@3.1169.0 pg@8.23.1',
