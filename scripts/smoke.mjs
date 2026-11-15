@@ -34,7 +34,8 @@ await probe('site', async () => {
   const html = await res.text();
   if (!html.includes('id="root"')) throw new Error('the page has no #root');
   if (html.includes('/src/main.tsx')) throw new Error('the page still points at the dev entry');
-  for (const needle of ['sk-tinyfish-', 'mk_ij3xDtOAKgHmErrC4qS8WraWgEoo9v6jvDpnKDQ4ZCw', 'GEMINI_API_KEY=']) {
+  if (/\bmk_[A-Za-z0-9_-]{30,}/.test(html)) throw new Error('the published page appears to contain a Maritime key');
+  for (const needle of ['sk-tinyfish-', 'GEMINI_API_KEY=']) {
     if (html.includes(needle)) throw new Error('the published page appears to contain a secret placeholder or key name');
   }
 });

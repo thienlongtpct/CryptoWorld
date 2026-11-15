@@ -132,11 +132,11 @@ export class VisuCryptoStack extends cdk.Stack {
     const sponsorSecretArn = (process.env.SPONSOR_SECRET_ARN || '').trim();
     const tinyfishKey = sponsorSecretArn ? '' : liveSecret(
       process.env.TINYFISH_API_KEY,
-      'sk-tinyfish-ax6dY9EleIaxUHC9iK_uhIXuujAJifPc',
+      'sk-tinyfish-REPLACE_ME',
     );
     const maritimeKey = sponsorSecretArn ? '' : liveSecret(
       process.env.MARITIME_API_KEY,
-      'mk_ij3xDtOAKgHmErrC4qS8WraWgEoo9v6jvDpnKDQ4ZCw',
+      'mk_REPLACE_ME',
     );
     // TigerData (Tiger Cloud Postgres). Prefer TIGER_DATABASE_URL inside the sponsor secret;
     // a plain env URL is a fallback. When neither is set the Lambdas use DynamoDB.
