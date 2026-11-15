@@ -127,9 +127,9 @@ test('sprite and portrait grids are square, use only the palette, and change wit
   assert.deepEqual(Object.keys(FACES).sort(), [...EXPRESSIONS].sort());
   assert.notEqual(portraitGrid({ expression: 'neutral', speaking: true }).join(), portraitGrid({ expression: 'neutral' }).join());
   assert.notEqual(spriteGrid(0).join(), spriteGrid(0, true).join());
-  // Gold key, cyan eyes, purple cloak, navy face: the four palette families all appear.
+  // A round padlock: pale body, gold shackle and plate, keyhole, eyes, and pink cheeks all appear.
   const portrait = portraitGrid({ expression: 'neutral' }).join('');
-  for (const ch of ['g', 'c', 'p', 'n', 's', 'b']) assert.ok(portrait.includes(ch), `portrait uses ${ch}`);
+  for (const ch of ['b', 'd', 'g', 'k', 'e', 'p', 'w']) assert.ok(portrait.includes(ch), `portrait uses ${ch}`);
 });
 
 // ── Dialogue data ───────────────────────────────────────────────────────────

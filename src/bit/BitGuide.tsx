@@ -248,6 +248,7 @@ export function BitGuide({ place, user, ready, blocked, reduced, hintsShown, onH
           place: place.name,
           ...(place.topicId ? { topic: place.topicId } : {}),
           ...(place.regionId ? { regionId: place.regionId } : {}),
+          ...(place.locationId ? { locationId: place.locationId } : {}),
           ...(place.challengeId ? { challengeId: place.challengeId } : {}),
         }),
       });

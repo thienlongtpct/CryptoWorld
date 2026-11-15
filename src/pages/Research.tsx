@@ -221,7 +221,7 @@ export function Research() {
       </nav>
 
       <header className="cw-research-hero">
-        <p className="cw-research-kicker">Library Sanctuary · Research Desk</p>
+        <p className="cw-research-kicker">The Library of Arcane Ciphers · Research Desk</p>
         <h1 id={`${formId}-title`}>Research Desk</h1>
         <p>
           Gather published sources for an approved topic or paper, starting with hashing.

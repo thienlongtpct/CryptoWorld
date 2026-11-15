@@ -19,7 +19,7 @@ export const RESEARCH_TOPICS: ResearchTopicOption[] = [
   {
     id: 'hash',
     title: 'Hash Functions',
-    blurb: 'SHA-2 digests, collision resistance, and avalanche — tied to the Hash crypt visualization.',
+    blurb: 'SHA-2 digests, collision resistance, and avalanche — tied to the Forge of Sealed Flames visualization.',
     defaultGoal: 'Explain what SHA-256 guarantees and why changing one input bit flips about half the digest.',
   },
   {

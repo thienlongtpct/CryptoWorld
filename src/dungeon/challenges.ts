@@ -1,6 +1,7 @@
 /** Public dungeon challenges. Secret flags and answer keys stay in server/dungeon.mjs. */
 
 import { G, P, mpow } from '../lib/crypto.ts';
+import { L } from '../world/locations.ts';
 
 export type ChallengeId = 'caesar' | 'xor' | 'vault' | 'wire' | 'seal' | 'overlap';
 export type ToolId = 'shift' | 'frequency' | 'convert' | 'xor' | 'seal';
@@ -28,8 +29,8 @@ export interface ClassifyItem {
 export interface Challenge {
   id: ChallengeId;
   title: string;
-  /** Wing that holds the gate. The Catacombs gates lead to the treasure room. */
-  wing: 'Cipher Catacombs' | 'Key Exchange Bridge' | 'Hash Forest' | 'Private Set Gardens';
+  /** Display name of the location that holds the gate (from `world/locations.ts`). Only the Labyrinth gates lead to the treasure room. */
+  wing: string;
   difficulty: 'Intro' | 'Practice' | 'Final';
   objective: string;
   evidence: string;
@@ -48,7 +49,7 @@ function hexBytes(bytes: number[]): string {
 }
 
 /**
- * The toy Diffie–Hellman exchange on the Key Exchange Bridge. The bridge NPCs and the
+ * The toy Diffie–Hellman exchange on the Bridge of Shared Secrets. The bridge NPCs and the
  * Public or Private? board use the same numbers. P = 1019 is far too small to be secure.
  */
 export const BRIDGE_DH = (() => {
@@ -66,12 +67,12 @@ const XOR_PAD = 0x17;
 const VAULT_BYTES = [0x5a, 0x41, 0x52, 0x45, 0x5d];
 const VAULT_PAD = 0x11;
 
-/** The courier's seal in the Hash Forest: letter values A = 1 … Z = 26, added up, modulo 26. */
+/** The courier's seal in the Fountain of Hash: letter values A = 1 … Z = 26, added up, modulo 26. */
 export function sealOf(word: string, modulus = 26): number {
   return [...word.toUpperCase()].reduce((sum, ch) => (/[A-Z]/.test(ch) ? sum + ch.charCodeAt(0) - 64 : sum), 0) % modulus;
 }
 
-/** The two gardens in the Private Set Gardens. Both lists are public evidence on the board. */
+/** The two gardens in the Gardens of Hidden Overlap. Both lists are public evidence on the board. */
 export const GARDENS = {
   carol: ['rose', 'iris', 'lily', 'sage', 'mint', 'fern'],
   dave: ['iris', 'mint', 'oak', 'sage', 'yew'],
@@ -81,7 +82,7 @@ export const CHALLENGES: Challenge[] = [
   {
     id: 'caesar',
     title: 'Shifted engraving',
-    wing: 'Cipher Catacombs',
+    wing: L.labyrinth,
     difficulty: 'Intro',
     objective: 'A stone gate carries a five-letter ciphertext. Each letter was shifted forward by 3. Shift each letter back by 3, wrapping from A to Z.',
     evidence: 'Ciphertext: KHOOR. Forward shift: 3.',
@@ -99,7 +100,7 @@ export const CHALLENGES: Challenge[] = [
   {
     id: 'xor',
     title: 'Public byte pad',
-    wing: 'Cipher Catacombs',
+    wing: L.labyrinth,
     difficulty: 'Practice',
     objective: 'The gate lists five ciphertext bytes in hexadecimal and one pad byte. XOR each ciphertext byte with the pad, then read the five result bytes as ASCII letters.',
     evidence: `Ciphertext bytes: ${hexBytes(XOR_BYTES)}. Pad byte: 0x${XOR_PAD.toString(16)}.`,
@@ -117,7 +118,7 @@ export const CHALLENGES: Challenge[] = [
   {
     id: 'vault',
     title: 'Combined inscription',
-    wing: 'Cipher Catacombs',
+    wing: L.labyrinth,
     difficulty: 'Final',
     objective: 'XOR each listed byte with the pad first. Read those results as uppercase ASCII letters. Those letters are a Caesar ciphertext that was shifted forward by 4. Shift each letter back by 4.',
     evidence: `Hex bytes: ${hexBytes(VAULT_BYTES)}. Pad byte: 0x${VAULT_PAD.toString(16)}. Caesar forward shift after the XOR: 4.`,
@@ -135,7 +136,7 @@ export const CHALLENGES: Challenge[] = [
   {
     id: 'wire',
     title: 'Public or Private?',
-    wing: 'Key Exchange Bridge',
+    wing: L.bridge,
     difficulty: 'Intro',
     objective: `Alice and Bob just agreed on a key with Diffie–Hellman while Eve listened to every message on the bridge. Eve is passive: she reads messages and changes nothing. For each value below, choose who was handed it during the exchange. Count only what each person chose, was sent, or computed from what they hold. Do not count guessing.`,
     evidence: `Public group: p = ${BRIDGE_DH.p}, g = ${BRIDGE_DH.g}. Alice picks a = ${BRIDGE_DH.a} and sends A = g^a mod p = ${BRIDGE_DH.A}. Bob picks b = ${BRIDGE_DH.b} and sends B = g^b mod p = ${BRIDGE_DH.B}. Both compute the key ${BRIDGE_DH.key}. Alice then sends Bob a note encrypted under that key.`,
@@ -172,7 +173,7 @@ export const CHALLENGES: Challenge[] = [
   {
     id: 'seal',
     title: 'Forged seal',
-    wing: 'Hash Forest',
+    wing: L.fountain,
     difficulty: 'Practice',
     objective: 'The courier seals every parcel with a checksum: add the letter values (A = 1 … Z = 26) and keep the remainder after dividing by 26. Oscar says he can swap a parcel without the seal changing. Show that the seal is weak: give a different word with the same seal as LEAF.',
     evidence: `Parcel: LEAF. L = 12, E = 5, A = 1, F = 6. The sum is 24, and the seal is 24 mod 26 = ${sealOf('LEAF')}.`,
@@ -190,7 +191,7 @@ export const CHALLENGES: Challenge[] = [
   {
     id: 'overlap',
     title: 'Shared beds',
-    wing: 'Private Set Gardens',
+    wing: L.gardens,
     difficulty: 'Practice',
     objective: 'Carol and Dave each keep a garden. They run private set intersection (PSI): Carol learns which of her plants Dave also grows, and nothing else about his garden. For each plant, choose what Carol learns when PSI finishes.',
     evidence: `Carol grows: ${GARDENS.carol.join(', ')}. Dave grows: ${GARDENS.dave.join(', ')}. Only Carol receives the output.`,
@@ -216,7 +217,7 @@ export const CHALLENGES: Challenge[] = [
   },
 ];
 
-/** The gates between the Catacomb hall and the treasure room. */
+/** The gates between the Hall of Banners and the treasure room. */
 export const CATACOMB_GATES: ChallengeId[] = ['caesar', 'xor', 'vault'];
 
 export const CHALLENGE_BY_ID: Record<string, Challenge> = Object.fromEntries(CHALLENGES.map(challenge => [challenge.id, challenge]));

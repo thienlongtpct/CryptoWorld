@@ -1,4 +1,5 @@
 import { TOPIC_BY_ID, TOPICS } from './vis/registry.ts';
+import { L } from './world/locations.ts';
 
 /** Routes a guest can open without an account. Everything else in the app is a lesson or a library page. */
 const PUBLIC_ROUTES = new Set(['', 'top', 'world', 'research']);
@@ -118,9 +119,9 @@ export const LIBRARY_SECTIONS: LibrarySection[] = [
 ];
 
 export const QUESTS = [
-  { id: 'grove', topic: 'hash', title: 'Hash Forest' },
-  { id: 'bridge', topic: 'dh', title: 'Key Exchange Bridge' },
-  { id: 'garden', topic: 'psi', title: 'Private Set Gardens' },
+  { id: 'grove', topic: 'hash', title: L.fountain },
+  { id: 'bridge', topic: 'dh', title: L.bridge },
+  { id: 'garden', topic: 'psi', title: L.gardens },
 ] as const;
 
 export type QuestTopic = (typeof QUESTS)[number]['topic'];

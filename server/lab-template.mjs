@@ -1,4 +1,4 @@
-/** Default Python template for the Hash Forest seal workbench. */
+/** Default Python template for the Fountain of Hash seal workbench. */
 export const SEAL_LAB_TEMPLATE = `# Toy courier seal: letter values A=1..Z=26, sum mod 26.
 # The parcel LEAF has seal 24. Find another word with the same seal.
 # This experiment shows weakness in the toy seal: a checksum is not authentication.

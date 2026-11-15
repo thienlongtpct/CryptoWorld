@@ -35,7 +35,7 @@ export function PracticalPath({ id }: { id: string }) {
 
       <MissionRail step="research" />
       <p className="paths-lead">
-        Suggested order: Research Desk → hash visualization (and Gemini tutors in Hash Forest) → Maritime lab beside the gate → submit the collision → Journal Skills.
+        Suggested order: Research Desk → hash visualization (and Gemini tutors in the Fountain of Hash) → Maritime lab beside the gate → submit the collision → Journal Skills.
         Leaving for Library pages keeps your world position and any open gate draft under the Crypto Dungeon strip.
       </p>
       <div className="mission-rail-nav">
@@ -70,7 +70,7 @@ export function PracticalPath({ id }: { id: string }) {
         <p className="practice-kicker">Maritime experiment</p>
         <h2>Toy-seal workbench</h2>
         <p>
-          In Hash Forest, open the Forged seal challenge and use the Maritime workbench beside it.
+          In the Fountain of Hash, open the Forged seal challenge and use the Maritime workbench beside it.
           The experiment shows weakness in the toy seal: a hash alone does not authenticate a sender.
           Running code or printing PASS does not unlock the gate or grant assessed skills.
         </p>
@@ -81,7 +81,7 @@ export function PracticalPath({ id }: { id: string }) {
         <p className="practice-kicker">Collision challenge</p>
         <h2>Forged seal</h2>
         <p>Submit a colliding word through the existing dungeon challenge endpoint. Only a server-checked correct answer creates assessed evidence for this gate.</p>
-        <a className="btn-l primary" href="#world">Open Hash Forest</a>
+        <a className="btn-l primary" href="#world">Open the Fountain of Hash</a>
       </section>
 
       <AssessmentPanel

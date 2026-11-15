@@ -1,7 +1,8 @@
 import { SHELVES } from '../access.ts';
 import { CATACOMB_GATES, challengeItemId } from '../dungeon/challenges.ts';
 import { portrayalNotice } from '../characters/cast.ts';
-import { fits, move, nearestSpot, type Blocker, type Spot, type Tile } from '../world/map.ts';
+import { L, locationOfRoom, type LocationId } from '../world/locations.ts';
+import { fits, move, nearestSpot, type Blocker, type Decor, type Spot, type Tile } from '../world/map.ts';
 
 export interface Room {
   id: string;
@@ -14,6 +15,8 @@ export interface Room {
   map: Tile[][];
   spots: Spot[];
   objective: string;
+  /** Flat artwork painted over the ground: a compass rose, drifting pages, travelling runes. */
+  decor?: Decor[];
 }
 
 export interface Place {
@@ -74,6 +77,23 @@ function grid(rows: string[]): Tile[][] {
     C: 'cabin',
     G: 'greenhouse',
     '!': 'sign',
+    // Landmarks and props for the named locations (see world/locations.ts).
+    F: 'fountain',
+    W: 'tower',
+    V: 'beds',
+    Q: 'stall',
+    Z: 'cave',
+    J: 'table',
+    L: 'lantern',
+    Y: 'signpost',
+    R: 'shrine',
+    S: 'seal',
+    I: 'stained',
+    X: 'flag',
+    N: 'archway',
+    D: 'anvil',
+    M: 'marker',
+    U: 'letters',
   };
   return rows.map(row => [...row].map(cell => legend[cell] ?? 'stone'));
 }
@@ -116,7 +136,7 @@ function knowledge(
   return {
     id,
     name,
-    wing: 'Library',
+    wing: L.library,
     entry: 'open',
     requires: [],
     back: 'grounds',
@@ -127,14 +147,14 @@ function knowledge(
       areaShelf(shelfId, shelfAt.x, shelfAt.y),
       {
         id: `${id}-out`,
-        name: 'Library grounds',
+        name: L.crossroads,
         x: doorAt.x,
         y: doorAt.y,
         kind: 'door',
         to: 'grounds',
         mark: 'EXIT',
-        guest: 'This door returns to the grounds.',
-        signed: 'This door returns to the grounds.',
+        guest: 'This door returns to the Crossroads of Secrets.',
+        signed: 'This door returns to the Crossroads of Secrets.',
       },
     ],
   };
@@ -143,30 +163,30 @@ function knowledge(
 export const ROOMS: Record<string, Room> = {
   grounds: {
     id: 'grounds',
-    name: 'Library grounds',
-    wing: 'Outside',
+    name: L.crossroads,
+    wing: L.crossroads,
     entry: 'open',
     requires: [],
     back: 'grounds',
     spawn: { x: 18.5, y: 23.5 },
     map: grid([
       'oo^^o^^^^o^^^ooo^o^^^^^^^o^o^^^^o^^o^oo^',
-      'o*****f***f**************************rr^',
-      '^***f*****f*f***AAAAAAAA*f****HHHHHH**^^',
-      'oh***********^**AAAAAAAA*o*u**HHHHHH*^*^',
+      'o*****fR**f**************************rr^',
+      '^**Rf*****fRf***AAAAAAAA*f****HHHHHH**^^',
+      'oh*****S*****^**AAAAAAAA*o*u**HHHHHH*^*^',
       'o***********^*^*AAAAAAAA***f**HHHHHH**^o',
       '^o*KKKKKK*f*****AAAdAAAA******HHHdHH***^',
-      '^**KKKKKK*f*f*fy========y******+++***f*^',
+      '^**KKKKKK*f*f*fy========y******+++*D*f*^',
       'oh*KKKKKK****h**=======++******+*******o',
       '^**KKdKKK*****f****+****++++++++****h**^',
       'o****++++**********+**f**********f**~~*o',
       'o*******++++++++++++***u*^*********r~~*o',
-      '^*urf*************+**f*f^**CCCCC*f**h~*^',
-      '^*^***************+**f*****CCCCC**o****o',
-      'o**^u*TTTTTTT*****++*****o*CCCCC*******o',
-      '^*f*f*TTTTTTT******++++****CCdCC***f*o!^',
-      '^*****TTTTTTT******+**++++++++++++++++++',
-      'o*o*f*TTTdTTT******+***************^*o*^',
+      '^*urf***********L*+**fLf^**CCCCC*f**h~*^',
+      '^*^***************+Y*f*****CCCCC**o****o',
+      'o**^u*TTTTTTT*****++**L**o*CCCCC*******o',
+      '^*f*fUTTTTTTT***L**++++****CCdCC***f*o!^',
+      '^*****TTTTTTTU*****+**++++++++++++++++++',
+      'o*o*f*TTTdTTT*U****+***************^*o*^',
       '^!r*f****+*+++++++++****************f**o',
       '++++++++++++******+***GGGGGG*f*r****h**o',
       'o*f***h**h*r**ffu*+*o*GGGGGG****o*f***f^',
@@ -177,7 +197,8 @@ export const ROOMS: Record<string, Room> = {
       'o**f*r*hh*****fff*+*******f**f******h**o',
       'oo^oo^^o^^o^o^^o^^o^oo^oo^^^o^o^^^oo^^^^',
     ]),
-    objective: 'Follow the paths. Each building is a different part of the library, and every path ends at a door.',
+    objective: 'Signposts at the compass rose point to every region. Each building holds part of the Library, and every path ends at a door.',
+    decor: [{ art: 'compass', x: 17, y: 10, w: 5, h: 5 }],
     spots: [
       person({
         id: 'trent-grounds',
@@ -187,9 +208,9 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'trent',
         regionId: 'grounds',
-        place: 'Library grounds',
-        guest: 'I am Trent. In protocol stories I am the trusted third party, the one both sides agree to rely on. Here I only vouch for directions: the winding path north ends at the Sanctuary, and every branch ends at a library building. You can look around before you log in.',
-        signed: 'I am Trent. The Sanctuary to the north leads to the Catacombs and the Key Exchange Bridge. Ask me when a protocol needs a trusted party, and when it does not.',
+        place: L.crossroads,
+        guest: 'I am Trent. In protocol stories I am the trusted third party, the one both sides agree to rely on. Here I only vouch for directions: this is the Crossroads of Secrets. The winding path north ends at the Library of Arcane Ciphers, and every branch ends at a landmark. You can look around before you log in.',
+        signed: 'I am Trent. The Library of Arcane Ciphers to the north leads to the Labyrinth of Hidden Flags and the Bridge of Shared Secrets. Ask me when a protocol needs a trusted party, and when it does not.',
       }),
       person({
         id: 'shamir-grounds',
@@ -199,54 +220,66 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'shamir',
         regionId: 'grounds',
-        place: 'Library grounds',
+        place: L.crossroads,
         topic: 'ss',
-        guest: `${notice.shamir} The cipher court beside this path holds the secret-sharing lesson from the 1979 paper How to Share a Secret: split a secret into shares so that any threshold of them rebuilds it, and fewer reveal nothing about it.`,
+        guest: `${notice.shamir} The Ruins of Shifting Letters beside this path holds the secret-sharing lesson from the 1979 paper How to Share a Secret: split a secret into shares so that any threshold of them rebuilds it, and fewer reveal nothing about it.`,
         signed: `${notice.shamir} Ask what a threshold means, or open the secret-sharing visualization.`,
       }),
       {
         id: 'to-sanctuary',
-        name: 'Library Sanctuary',
+        name: L.library,
         x: 19.5,
         y: 5.5,
         kind: 'door',
         to: 'sanctuary',
-        mark: 'SANCTUARY',
-        guest: 'The dirt path ends at the library door.',
-        signed: 'The dirt path ends at the sanctuary door.',
+        mark: 'LIBRARY',
+        guest: 'The dirt path ends at the door of the Library of Arcane Ciphers.',
+        signed: 'The dirt path ends at the door of the Library of Arcane Ciphers.',
       },
       {
         id: 'to-forest',
-        name: 'Hash Forest',
+        name: L.fountain,
         x: 39.5,
         y: 15.5,
         kind: 'door',
         to: 'forest',
-        mark: 'FOREST',
+        mark: 'FOUNTAIN',
         auto: true,
-        guest: 'The path east leaves the grounds for the Hash Forest.',
-        signed: 'The path east leaves the grounds for the Hash Forest.',
+        guest: 'The path east leaves the Crossroads for the Fountain of Hash.',
+        signed: 'The path east leaves the Crossroads for the Fountain of Hash.',
       },
       {
         id: 'to-gardens',
-        name: 'Private Set Gardens',
+        name: L.gardens,
         x: 0.5,
         y: 18.5,
         kind: 'door',
         to: 'gardens',
         mark: 'GARDENS',
         auto: true,
-        guest: 'The path west leaves the grounds for the Private Set Gardens.',
-        signed: 'The path west leaves the grounds for the Private Set Gardens.',
+        guest: 'The path west leaves the Crossroads for the Gardens of Hidden Overlap.',
+        signed: 'The path west leaves the Crossroads for the Gardens of Hidden Overlap.',
       },
-      groundsDoor('to-keys', 'Key citadel', 5.5, 8.5, 'keys', 'KEYS', 'Public keys and encrypted math. The room is a citadel of keys.'),
-      groundsDoor('to-hashes', 'Hash crypt', 33.5, 5.5, 'hashes', 'HASHES', 'Hashes and secret-key encryption. The room is a crypt of digest blocks.'),
-      groundsDoor('to-ciphers', 'Cipher court', 9.5, 16.5, 'ciphers', 'CIPHERS', 'Ciphers, shares, and proofs. The room is a court of wheels and tablets.'),
-      groundsDoor('to-compute', 'Circuit shop', 29.5, 14.5, 'compute', 'COMPUTE', 'Computing without showing inputs. The room is a shop of circuits.'),
-      groundsDoor('to-sets', 'Overlap garden', 24.5, 21.5, 'sets', 'SETS', 'Private lists and their overlap. The room is a garden of two ponds.'),
+      groundsDoor('to-keys', L.citadel, 5.5, 8.5, 'keys', 'CITADEL', 'Public keys and encrypted math. Twin keys hang over the gate: one public, one kept in the vault.'),
+      groundsDoor('to-hashes', L.forge, 33.5, 5.5, 'hashes', 'FORGE', 'Block ciphers, modes, and hashes. The furnaces seal equal blocks with one shared key.'),
+      groundsDoor('to-ciphers', L.ruins, 9.5, 16.5, 'ciphers', 'RUINS', 'Ciphers, shares, and proofs. Alphabet pillars and a Caesar wheel stand among the ruins.'),
+      groundsDoor('to-compute', L.observatory, 29.5, 14.5, 'compute', 'OBSERVATORY', 'Computing without showing inputs. Separate telescopes draw one shared constellation.'),
+      groundsDoor('to-sets', 'The Conservatory of Hidden Overlap', 24.5, 21.5, 'sets', 'GLASSHOUSE', 'Private lists and their overlap. A glasshouse of the Gardens of Hidden Overlap.'),
+      {
+        id: 'peaks-seal',
+        name: L.peaks,
+        x: 7.5,
+        y: 4.5,
+        kind: 'future',
+        mark: 'PEAKS',
+        lesson: 'ss',
+        summary: 'Not open yet. The Peaks of Shattered Secrets will hold threshold puzzles. Three shrines each keep one share, and the seal wakes only when two of them give their light. The secret-sharing visualization is already in the Library.',
+        guest: 'Three shrines each hold one shard of light. The seal between them wakes only when two shrines shine at once. One shard alone reveals nothing. The Peaks of Shattered Secrets are future content.',
+        signed: 'Three shrines each hold one shard of light. The seal between them wakes only when two shrines shine at once. One shard alone reveals nothing. The Peaks of Shattered Secrets are future content.',
+      },
     ],
   },
-  ciphers: knowledge('ciphers', 'Cipher court', 'foundations', [
+  ciphers: knowledge('ciphers', L.ruins, 'foundations', [
     '###t##B##B##t###',
     '#ss.e.e..e.e.ss#',
     '#P............P#',
@@ -257,7 +290,7 @@ export const ROOMS: Record<string, Room> = {
     '#hh..q....q..hh#',
     '################',
   ], { x: 4.5, y: 6.5 }, { x: 6.5, y: 3.5 }, { x: 1.5, y: 6.5 }),
-  hashes: knowledge('hashes', 'Hash crypt', 'symmetric', [
+  hashes: knowledge('hashes', L.forge, 'symmetric', [
     '###t###v##v###t#',
     '#bb..........bb#',
     '#..............#',
@@ -268,7 +301,7 @@ export const ROOMS: Record<string, Room> = {
     '#.q.|.......|.q#',
     '################',
   ], { x: 4.5, y: 6.5 }, { x: 8.5, y: 5.5 }, { x: 1.5, y: 6.5 }),
-  keys: knowledge('keys', 'Key citadel', 'public', [
+  keys: knowledge('keys', L.citadel, 'public', [
     '###t####B###t###',
     '#--p--y--y--p--#',
     '#P------------P#',
@@ -279,7 +312,7 @@ export const ROOMS: Record<string, Room> = {
     '#hP----------Ph#',
     '################',
   ], { x: 4.5, y: 6.5 }, { x: 8.5, y: 5.5 }, { x: 1.5, y: 6.5 }),
-  compute: knowledge('compute', 'Circuit shop', 'mpc', [
+  compute: knowledge('compute', L.observatory, 'mpc', [
     '################',
     '#s,k,,m,,m,,k,s#',
     '#,,nnnnnnnnnn,,#',
@@ -290,7 +323,7 @@ export const ROOMS: Record<string, Room> = {
     '#h,,,,,ss,,,,,h#',
     '################',
   ], { x: 4.5, y: 6.5 }, { x: 7.5, y: 3.5 }, { x: 1.5, y: 6.5 }),
-  sets: knowledge('sets', 'Overlap garden', 'sets', [
+  sets: knowledge('sets', 'The Conservatory of Hidden Overlap', 'sets', [
     '################',
     '#f*^**ff**^*f*o#',
     '#*h~~~~**~~~~h*#',
@@ -304,27 +337,28 @@ export const ROOMS: Record<string, Room> = {
   ], { x: 3.5, y: 6.5 }, { x: 8.5, y: 4.5 }, { x: 1.5, y: 6.5 }),
   sanctuary: {
     id: 'sanctuary',
-    name: 'Library Sanctuary',
-    wing: 'Library Sanctuary',
+    name: L.library,
+    wing: L.library,
     entry: 'open',
     requires: [],
     back: 'grounds',
     spawn: { x: 9.5, y: 7.5 },
     map: grid([
-      '###t#B##d##B#t####',
+      '###t#I##d##I#t####',
       '#sss----_----ssss#',
       '#sss----_-----sss#',
       '#-------_--------#',
       '#-P--k--_--k---P-#',
       '#-------_--------#',
-      '#y------_-------y#',
+      '#y------_-JJJ---y#',
       '#--h----_------h-#',
       '#k------_--------d',
       '#h--P---_----P--h#',
-      '#-------d--------#',
+      '#-------N--------#',
       '##################',
     ]),
-    objective: 'The grounds buildings are the library. The south door is the Cipher Catacombs. The east door is the Key Exchange Bridge.',
+    objective: 'The lit table and the shelves hold every lesson. The south gate opens the Labyrinth of Hidden Flags. The east door leads to the Bridge of Shared Secrets.',
+    decor: [{ art: 'pages', x: 1, y: 1, w: 16, h: 4 }],
     spots: [
       person({
         id: 'peggy-sanctuary',
@@ -334,9 +368,9 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'peggy',
         regionId: 'sanctuary',
-        place: 'Library Sanctuary',
+        place: L.library,
         topic: 'zk',
-        guest: 'I am Peggy, the prover. I can convince Victor that I know a secret without showing it to him. The zero-knowledge lesson plays rounds of that proof. The south door leads to the Cipher Catacombs.',
+        guest: 'I am Peggy, the prover. I can convince Victor that I know a secret without showing it to him. The zero-knowledge lesson plays rounds of that proof. The south door leads to the Labyrinth of Hidden Flags.',
         signed: 'I am Peggy. Ask what a prover must be able to do, or open the zero-knowledge lesson.',
       }),
       person({
@@ -347,7 +381,7 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'victor',
         regionId: 'sanctuary',
-        place: 'Library Sanctuary',
+        place: L.library,
         topic: 'zk',
         guest: 'I am Victor, the verifier. I send Peggy random challenges. Each one she answers makes cheating less likely, and I end up convinced without learning her secret.',
         signed: 'I am Victor. Ask what a verifier checks, and what a verifier never learns.',
@@ -360,7 +394,7 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'shannon',
         regionId: 'library',
-        place: 'Library Sanctuary',
+        place: L.library,
         guest: `${portrayalNotice('Claude Shannon')} Each area of the library is a building outside, and each one is drawn differently. Opening a visualization needs an account so the progress can be saved.`,
         signed: `${portrayalNotice('Claude Shannon')} Ask about what a message can reveal, or open Meet the cryptographers. The five buildings outside are the library.`,
       }),
@@ -377,32 +411,32 @@ export const ROOMS: Record<string, Room> = {
       },
       {
         id: 'to-bridge',
-        name: 'Key Exchange Bridge',
+        name: L.bridge,
         x: 16.5,
         y: 8.5,
         kind: 'door',
         to: 'bridge',
-        mark: 'EAST',
+        mark: 'BRIDGE',
         guest: 'A bridge where Alice and Bob agree on a key while Eve listens. One board asks who holds each value. Log in to cross and to save the gate.',
-        signed: 'The Key Exchange Bridge. Sort the values of one key exchange by who holds them to open the bridge gate.',
+        signed: 'The Bridge of Shared Secrets. Sort the values of one key exchange by who holds them to open the bridge gate.',
       },
       {
         id: 'to-catacombs',
-        name: 'Cipher Catacombs',
+        name: L.labyrinth,
         x: 8.5,
         y: 10.5,
         kind: 'door',
         to: 'hall',
-        mark: 'ENTER',
+        mark: 'LABYRINTH',
         guest: 'Stone corridors, three gates, and a treasure room. Caesar, Vigenère, and Al-Kindi are inside. Log in to enter and to save solved gates.',
-        signed: 'The Cipher Catacombs are open. Three gates stand between here and the treasure room.',
+        signed: 'The Labyrinth of Hidden Flags is open. Three gates stand between here and the treasure room.',
       },
     ],
   },
   bridge: {
     id: 'bridge',
-    name: 'Key Exchange Bridge',
-    wing: 'Key Exchange Bridge',
+    name: L.bridge,
+    wing: L.bridge,
     entry: 'auth',
     requires: [],
     back: 'sanctuary',
@@ -410,9 +444,9 @@ export const ROOMS: Record<string, Room> = {
     map: grid([
       '^o^^o^^~~~~~~^^o^^',
       '^*f***h~~~~~~h*f*^',
-      'o**r**~~~~~~~~**^o',
-      '^*f**h~~~~~~~~h**^',
-      'o*u***~~~~~~~~*f*o',
+      'oWWW**~~~~~~~~WWWo',
+      '^WWW*h~~~~~~~~WWW^',
+      'oWWW**~~~~~~~~WWWo',
       'd=====:::g:::====d',
       '^*f***~~~~~~~~**r^',
       'o**h**~~~~~~~~h*f^',
@@ -421,6 +455,7 @@ export const ROOMS: Record<string, Room> = {
       '^o^^o^^~~~~~~^o^^^',
     ]),
     objective: 'Sort the values of the key exchange by who holds them. The answer opens the gate on the bridge.',
+    decor: [{ art: 'runes', x: 1, y: 5, w: 16, h: 1 }],
     spots: [
       person({
         id: 'alice-bridge-room',
@@ -430,7 +465,7 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'alice',
         regionId: 'bridge',
-        place: 'Key Exchange Bridge',
+        place: L.bridge,
         topic: 'dh',
         guest: 'I am Alice. I picked a secret exponent and sent one public number across the bridge to Bob. Eve heard it. The board at the gate asks who holds each value.',
         signed: 'I am Alice. I know my exponent, both public numbers, and the key we share. Ask what I can know, or open the Diffie–Hellman visualization.',
@@ -443,21 +478,21 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'eve',
         regionId: 'bridge',
-        place: 'Key Exchange Bridge',
+        place: L.bridge,
         topic: 'dh',
         guest: 'I am Eve. I hear every message on this bridge, and I do not change any of them. Hearing a message is not the same as knowing the secret behind it.',
         signed: 'I am Eve, a passive listener. Ask what the public values tell me and what they do not. I still do not edit them.',
       }),
       {
         id: 'bridge-back',
-        name: 'Library Sanctuary',
+        name: L.library,
         x: 0.5,
         y: 5.5,
         kind: 'door',
         to: 'sanctuary',
-        mark: 'WEST',
-        guest: 'Back to the Library Sanctuary.',
-        signed: 'Back to the Library Sanctuary.',
+        mark: 'LIBRARY',
+        guest: 'Back to the Library of Arcane Ciphers.',
+        signed: 'Back to the Library of Arcane Ciphers.',
       },
       {
         id: 'bridge-gate',
@@ -475,34 +510,34 @@ export const ROOMS: Record<string, Room> = {
       person({
         id: 'bob-bridge-room',
         name: 'Bob',
-        x: 14.5,
-        y: 3.5,
+        x: 15.5,
+        y: 6.5,
         kind: 'person',
         characterId: 'bob',
         regionId: 'bridge',
-        place: 'Key Exchange Bridge',
+        place: L.bridge,
         topic: 'dh',
         guest: 'I am Bob. Alice’s number reached me over the bridge. My exponent never left this bank.',
         signed: 'I am Bob. You crossed. I know my exponent, both public numbers, and the key Alice and I share. Eve heard the same two numbers and still does not have the key.',
       }),
       {
         id: 'bridge-citadel',
-        name: 'Public-Key Citadel',
+        name: L.citadel,
         x: 16.5,
         y: 5.5,
         kind: 'future',
         mark: 'SOON',
         lesson: 'rsa',
-        summary: 'Not open yet. The Public-Key Citadel will hold RSA and elliptic-curve challenges. The RSA and elliptic-curve visualizations are already in the Library.',
-        guest: 'The far door is sealed. The Public-Key Citadel is future content.',
-        signed: 'The far door is sealed. The Public-Key Citadel is future content.',
+        summary: 'Not open yet. The Citadel of Twin Keys will hold RSA and elliptic-curve challenges. The RSA and elliptic-curve visualizations are already in the Library.',
+        guest: 'The far door is sealed. The Citadel of Twin Keys is future content.',
+        signed: 'The far door is sealed. The Citadel of Twin Keys is future content.',
       },
     ],
   },
   forest: {
     id: 'forest',
-    name: 'Hash Forest',
-    wing: 'Hash Forest',
+    name: L.fountain,
+    wing: L.fountain,
     entry: 'open',
     requires: [],
     back: 'grounds',
@@ -510,8 +545,8 @@ export const ROOMS: Record<string, Room> = {
     map: grid([
       'oo^^o^^^^o^^^ooo^o^^^^^^^o^o^^^^o^^o^oo^^o^o',
       'o^***f*^***^****o^**~~~h**u****#^h*^*****x*^',
-      '^*h***^********^*f**~~~**^*^*^*#**u********^',
-      'o^******^^**r*****o**~~~****^**#*^****rrrr*o',
+      '^*h***^********^*f**~~~**^*^*^*#**u***ZZZZ*^',
+      'o^******^^**r*****o**~~~****^**#*^****ZZZZ*o',
       'o^**^**^**********^^*~~~h*^^**^#*^***rr||rr^',
       '^^****^*****^^^**^*^*~~~h^**^**#**^**r****r^',
       '^**^****^**^^**f*^**^~~~*^**r**#*******=***^',
@@ -520,9 +555,9 @@ export const ROOMS: Record<string, Room> = {
       'o*****u****r*t**^u**~~~****f**f#*P=======P*^',
       'o**************f*^^*~~~*h******#*=========*o',
       '^^***++++++++*****^~~~**h*^****#*=========*^',
-      '^****+******+*****~~~*hh*******#*=========*o',
-      'o*!**+******+****^~~~hh*+++++++g+====p====*o',
-      '++++++*o*^**+***h~~~h***+******#*=========*^',
+      '^****+******+*****~~~*hh*******#*===FFF===*o',
+      'o*!**+******+****^~~~hh*+++++++g+===FFF===*o',
+      '++++++*o*^**+***h~~~h***+******#*===FFF===*^',
       '^***********+++++:::+++++*^*^ou#*=========*^',
       'o******r*f^******~~~******^***^#*=========*^',
       '^****^****^^****h~~~*h**^^^^*^r#*P=======P*^',
@@ -537,19 +572,20 @@ export const ROOMS: Record<string, Room> = {
       '^******^^rf*****u**u*~~~***^^**#*f**o**u*r*^',
       '^^^o^^^o^oo^^^o^oo^oo^^^^^^^o^^^^o^^o^o^^ooo',
     ]),
-    objective: 'Follow the trail east, across the stream, to the old shrine gate.',
+    objective: 'Follow the trail east, across the stream, to the shrine gate. The Fountain of Hash glows behind it.',
+    decor: [{ art: 'hash-stream', x: 32, y: 13, w: 10, h: 1 }],
     spots: [
       {
         id: 'forest-out',
-        name: 'Library grounds',
+        name: L.crossroads,
         x: 0.5,
         y: 14.5,
         kind: 'door',
         to: 'grounds',
-        mark: 'GROUNDS',
+        mark: 'CROSSROADS',
         auto: true,
-        guest: 'The trail leads back west to the library grounds.',
-        signed: 'The trail leads back west to the library grounds.',
+        guest: 'The trail leads back west to the Crossroads of Secrets.',
+        signed: 'The trail leads back west to the Crossroads of Secrets.',
       },
       person({
         id: 'faythe-forest',
@@ -559,7 +595,7 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'faythe',
         regionId: 'grove',
-        place: 'Hash Forest',
+        place: L.fountain,
         topic: 'hash',
         guest: 'I am Faythe, a courier. I seal each parcel by adding up its letters, and I check the seal when it arrives. Oscar says my seal is weak. The old shrine gate ahead will test that claim.',
         signed: 'I am Faythe. Ask what a seal proves, or why a simple checksum is not a real hash.',
@@ -572,9 +608,9 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'oscar',
         regionId: 'grove',
-        place: 'Hash Forest',
+        place: L.fountain,
         topic: 'hash',
-        guest: 'I am Oscar. Faythe adds letters up and calls it a seal. Find another word with the same seal as LEAF and the shrine gate opens. With SHA-256 you would not get that lucky.',
+        guest: 'I am Oscar. Faythe adds letters up and calls it a seal. Find another word with the same seal as LEAF and the shrine gate opens. The Fountain behind it is a real hash: with SHA-256 you would not get that lucky.',
         signed: 'I am Oscar. Ask how a forger thinks, or why a real hash resists this trick.',
       }),
       {
@@ -592,22 +628,22 @@ export const ROOMS: Record<string, Room> = {
       },
       {
         id: 'forest-cave',
-        name: 'Zero-Knowledge Cavern',
+        name: L.cavern,
         x: 39.5,
         y: 6.5,
         kind: 'future',
         mark: 'SOON',
         lesson: 'zk',
-        summary: 'Not open yet. The Zero-Knowledge Cavern will hold Peggy and Victor’s proof puzzles. The zero-knowledge visualization is already in the Library.',
-        guest: 'Iron bars seal the cave mouth. The Zero-Knowledge Cavern is future content.',
-        signed: 'Iron bars seal the cave mouth. The Zero-Knowledge Cavern is future content.',
+        summary: 'Not open yet. The Cavern of Unspoken Proofs will hold Peggy and Victor’s proof puzzles. The zero-knowledge visualization is already in the Library.',
+        guest: 'Iron bars seal the cave mouth. The Cavern of Unspoken Proofs is future content.',
+        signed: 'Iron bars seal the cave mouth. The Cavern of Unspoken Proofs is future content.',
       },
     ],
   },
   gardens: {
     id: 'gardens',
-    name: 'Private Set Gardens',
-    wing: 'Private Set Gardens',
+    name: L.gardens,
+    wing: L.gardens,
     entry: 'open',
     requires: [],
     back: 'grounds',
@@ -617,12 +653,12 @@ export const ROOMS: Record<string, Room> = {
       'o************f**************r***h******^',
       '^*oooooooooooooo********oooooooooooooo*^',
       'o*o*~~~h*******o*****hufo*~~~h*******o*^',
-      'o*o*ff*fffffff*o**~~~~**o**ffff*ffff*o*o',
-      '^*o************o*h~~~~**o********f***o*^',
-      '^*o**ffff*ffff*o**~~~~h*o*fff*ffff*f*o*^',
-      'ofo************o**~~~~**o********f***o*o',
+      'o*o*ff*fffffff*o*VVVVVV*o**ffff*ffff*o*o',
+      '^*o***M********o*VVVVVV*o***M****f***o*^',
+      '^*o**ffff*ffff*o*VVVVVV*o*fff*ffff*f*o*^',
+      'ofo************o*VVVVVV*o********f***o*o',
       '^*o*fff*ffff*f*o**h*****off*ffff*fff*o*^',
-      'oho************o*******fo************o*o',
+      'oho*********M**o*******fo*********M**o*o',
       'o*o*f****+*****o********o*****+******o*o',
       '^*ooooooo+oooooo******f*oooooo+ooooooo*^',
       '^********+********************+*******!o',
@@ -633,8 +669,8 @@ export const ROOMS: Record<string, Room> = {
       '^****h****f********+**u***********h****o',
       '^***^***^***^***^r*+***f^***^*f*^r**^**o',
       'o***f*********u****+****u**************^',
-      'o***r*********f*h**+*******************^',
-      '^***^h**^*f*^***^**+****^***^***^u**^**o',
+      'o***r*********f*h**+*************QQQ***^',
+      '^***^h**^*f*^***^**+****^***^**f*QQQ*f*o',
       'o*****************y+y***************rr*^',
       'o*****u*f**********++++++++++++++++**|*^',
       'o***********************************rr*o',
@@ -644,15 +680,15 @@ export const ROOMS: Record<string, Room> = {
     spots: [
       {
         id: 'gardens-out',
-        name: 'Library grounds',
+        name: L.crossroads,
         x: 39.5,
         y: 13.5,
         kind: 'door',
         to: 'grounds',
-        mark: 'GROUNDS',
+        mark: 'CROSSROADS',
         auto: true,
-        guest: 'The path leads back east to the library grounds.',
-        signed: 'The path leads back east to the library grounds.',
+        guest: 'The path leads back east to the Crossroads of Secrets.',
+        signed: 'The path leads back east to the Crossroads of Secrets.',
       },
       person({
         id: 'carol-gardens',
@@ -662,7 +698,7 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'carol',
         regionId: 'garden',
-        place: 'Private Set Gardens',
+        place: L.gardens,
         topic: 'psi',
         guest: 'I am Carol. This is my garden. Dave keeps the one across the path. We want to know which plants we share without showing each other the rest.',
         signed: 'I am Carol. Ask what I learn when PSI finishes, and what stays hidden from me.',
@@ -675,7 +711,7 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'dave',
         regionId: 'garden',
-        place: 'Private Set Gardens',
+        place: L.gardens,
         topic: 'psi',
         guest: 'I am Dave. My plants stay in my garden. When Carol and I run PSI, she learns only the ones we both grow.',
         signed: 'I am Dave. Ask what I put into PSI, or what Carol learns about my garden.',
@@ -695,28 +731,28 @@ export const ROOMS: Record<string, Room> = {
       },
       {
         id: 'gardens-market',
-        name: 'Oblivious Market',
+        name: L.bazaar,
         x: 35.5,
         y: 23.5,
         kind: 'future',
         mark: 'SOON',
         lesson: 'ot',
-        summary: 'Not open yet. The Oblivious Market will hold oblivious transfer puzzles. The oblivious transfer visualization is already in the Library.',
-        guest: 'Iron bars close the way east. The Oblivious Market is future content.',
-        signed: 'Iron bars close the way east. The Oblivious Market is future content.',
+        summary: 'Not open yet. The Bazaar of Veiled Choices will hold oblivious transfer puzzles. The oblivious transfer visualization is already in the Library.',
+        guest: 'Iron bars close the way east. The Bazaar of Veiled Choices is future content.',
+        signed: 'Iron bars close the way east. The Bazaar of Veiled Choices is future content.',
       },
     ],
   },
   hall: {
     id: 'hall',
-    name: 'Catacomb hall',
-    wing: 'Cipher Catacombs',
+    name: 'The Hall of Banners',
+    wing: L.labyrinth,
     entry: 'auth',
     requires: [],
     back: 'sanctuary',
     spawn: { x: 5.5, y: 5.5 },
     map: grid([
-      '####t##B##B##t##',
+      '####t##X##X##t##',
       '#..............#',
       '#P..........y.P#',
       '#..t......t....#',
@@ -737,21 +773,21 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'vigenere',
         regionId: 'catacombs',
-        place: 'Cipher Catacombs',
+        place: L.labyrinth,
         topic: 'vigenere',
         guest: `${notice.vigenere} A keyword can pick a different shift for each letter. The repeating-keyword tableau is a later name for work in the 1586 treatise. The gates ahead use a single stated shift, not a hidden keyword.`,
         signed: `${notice.vigenere} Ask about what a keyword changes. The polyalphabetic visualization is in the Library. These gates do not ask you to guess a keyword.`,
       }),
       {
         id: 'hall-back',
-        name: 'Library Sanctuary',
+        name: L.library,
         x: 1.5,
         y: 7.5,
         kind: 'door',
         to: 'sanctuary',
-        mark: 'EXIT',
-        guest: 'This door returns to the Library Sanctuary.',
-        signed: 'This door returns to the Library Sanctuary.',
+        mark: 'LIBRARY',
+        guest: 'This door returns to the Library of Arcane Ciphers.',
+        signed: 'This door returns to the Library of Arcane Ciphers.',
       },
       {
         id: 'hall-forward',
@@ -769,13 +805,13 @@ export const ROOMS: Record<string, Room> = {
   caesar: {
     id: 'caesar',
     name: 'Shift gate',
-    wing: 'Cipher Catacombs',
+    wing: L.labyrinth,
     entry: 'auth',
     requires: [],
     back: 'hall',
     spawn: { x: 4.5, y: 5.5 },
     map: grid([
-      '###t##B##B##t#',
+      '###t##X##X##t#',
       '#............#',
       '#.Peeeeeeee..#',
       '#............#',
@@ -796,7 +832,7 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'caesar',
         regionId: 'catacombs',
-        place: 'Cipher Catacombs',
+        place: L.labyrinth,
         topic: 'caesar',
         guest: `${notice.caesar} Suetonius describes letters moved three places. That is a shift cipher, not a claim that every substitution was invented by Caesar. This gate states its shift.`,
         signed: `${notice.caesar} The ciphertext and the shift are on the gate. Ask for a hint, or open the Caesar visualization.`,
@@ -809,14 +845,14 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'kindi',
         regionId: 'catacombs',
-        place: 'Cipher Catacombs',
+        place: L.labyrinth,
         topic: 'freqan',
         guest: `${notice.kindi} Counting letters can expose a simple substitution when the language is known. This gate already states its shift, so counting is a tool here, not a required guess.`,
         signed: `${notice.kindi} The frequency tool counts the letters you type. The frequency visualization is in the Library.`,
       }),
       {
         id: 'caesar-back',
-        name: 'Catacomb hall',
+        name: 'The Hall of Banners',
         x: 1.5,
         y: 6.5,
         kind: 'door',
@@ -844,7 +880,7 @@ export const ROOMS: Record<string, Room> = {
   xor: {
     id: 'xor',
     name: 'Byte gate',
-    wing: 'Cipher Catacombs',
+    wing: L.labyrinth,
     entry: 'auth',
     requires: ['caesar'],
     back: 'caesar',
@@ -871,7 +907,7 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'eve',
         regionId: 'catacombs',
-        place: 'Cipher Catacombs',
+        place: L.labyrinth,
         topic: 'otp',
         guest: 'I am Eve. I can see the public bytes on this gate. I do not change, inject, or replace them. The pad is written on the gate for you.',
         signed: 'I am Eve. Ask what an observer can see. I still do not edit the bytes.',
@@ -906,13 +942,13 @@ export const ROOMS: Record<string, Room> = {
   final: {
     id: 'final',
     name: 'Combined gate',
-    wing: 'Cipher Catacombs',
+    wing: L.labyrinth,
     entry: 'auth',
     requires: ['caesar', 'xor'],
     back: 'xor',
     spawn: { x: 4.5, y: 5.5 },
     map: grid([
-      '##t#B#vv#B#t##',
+      '##t#X#vv#X#t##',
       '#............#',
       '#.Peeeeeeee.P#',
       '#..y......y..#',
@@ -933,7 +969,7 @@ export const ROOMS: Record<string, Room> = {
         kind: 'person',
         characterId: 'daemen',
         regionId: 'catacombs',
-        place: 'Cipher Catacombs',
+        place: L.labyrinth,
         topic: 'blockcipher',
         guest: `${notice.daemen} This last gate stacks two simple steps in a stated order: XOR first, then a shift. Block ciphers also repeat simple steps in a fixed order. AES, the standard in FIPS 197 built from Rijndael, runs rounds, and one step of each round XORs a round key into the data.`,
         signed: `${notice.daemen} Do the XOR first, then undo the shift. Ask why the order matters, or open the block-cipher visualization.`,
@@ -968,13 +1004,13 @@ export const ROOMS: Record<string, Room> = {
   vault: {
     id: 'vault',
     name: 'Treasure room',
-    wing: 'Cipher Catacombs',
+    wing: L.labyrinth,
     entry: 'auth',
     requires: ['caesar', 'xor', 'vault'],
     back: 'final',
     spawn: { x: 7.5, y: 5.5 },
     map: grid([
-      '###t#BB#t###',
+      '###t#XX#t###',
       '#y.......y.#',
       '#..c..c..c.#',
       '#....___...#',
@@ -984,7 +1020,7 @@ export const ROOMS: Record<string, Room> = {
       '#y........y#',
       '############',
     ]),
-    objective: 'The gates are open. Read the treasure, or return to the Library.',
+    objective: 'The gates are open. Read the treasure, or return to the Library of Arcane Ciphers.',
     spots: [
       {
         id: 'treasure',
@@ -998,18 +1034,28 @@ export const ROOMS: Record<string, Room> = {
       },
       {
         id: 'vault-home',
-        name: 'Library Sanctuary',
+        name: L.library,
         x: 5.5,
         y: 6.5,
         kind: 'door',
         to: 'sanctuary',
         mark: 'EXIT',
-        guest: 'Return to the Library Sanctuary.',
-        signed: 'Return to the Library Sanctuary.',
+        guest: 'Return to the Library of Arcane Ciphers.',
+        signed: 'Return to the Library of Arcane Ciphers.',
       },
     ],
   },
 };
+
+/** Every room's wing is the display name of its location, so the HUD, the map, and Bit agree. */
+for (const [id, room] of Object.entries(ROOMS)) room.wing = locationOfRoom(id).name;
+
+/** The location a room belongs to, with its name, subtitle, palette, and artwork. */
+export function locationOf(roomId: string) {
+  return locationOfRoom(roomId);
+}
+
+export type { LocationId };
 
 /**
  * Each door leads to the front of the door that leads back, so leaving a building puts you outside it.
@@ -1187,6 +1233,21 @@ export function saveMotion(value: 'system' | 'reduce' | 'full') {
   }
 }
 
+const DISCOVERED_KEY = 'dungeon-discovered';
+
+/** Marks a location as found. True the first time, so the banner can say it is new. */
+export function markDiscovered(id: string): boolean {
+  try {
+    const seen = JSON.parse(localStorage.getItem(DISCOVERED_KEY) || '[]') as unknown;
+    const list = Array.isArray(seen) ? seen.filter((item): item is string => typeof item === 'string') : [];
+    if (list.includes(id)) return false;
+    localStorage.setItem(DISCOVERED_KEY, JSON.stringify([...list, id]));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const BIT_KEY = 'dungeon-bit';
 
 /** Bit's tutorials the player has already seen or skipped, and the instant-text setting. */
@@ -1230,7 +1291,7 @@ export function step(room: Room, x: number, y: number, dx: number, dy: number, p
   return move(room.map, x, y, dx, dy, openCells(room, progress), blockersOf(room));
 }
 
-/** Solved Catacomb gates. The bridge board is a separate wing and does not count toward the treasure room. */
+/** Solved Labyrinth gates. The bridge board is a separate wing and does not count toward the treasure room. */
 export const SOLVED_COUNT = (progress: Record<string, string>) =>
   CATACOMB_GATES.filter(id => challengeDone(progress, id)).length;
 
@@ -1250,17 +1311,17 @@ export function nextGoal(roomId: string, user: string | null, progress: Record<s
     : { text: `Solve the ${name}. Open it to read the evidence.`, target: spot });
   switch (roomId) {
     case 'grounds':
-      if (!user) return { text: 'Follow the path north to the Sanctuary.', target: 'to-sanctuary' };
-      if (!catacombsDone) return { text: 'Go to the Sanctuary. The Catacombs start there.', target: 'to-sanctuary' };
-      if (!bridgeDone) return { text: 'Go to the Sanctuary, then east to the Key Exchange Bridge.', target: 'to-sanctuary' };
-      if (!challengeDone(progress, 'seal')) return { text: 'Take the east path into the Hash Forest.', target: 'to-forest' };
-      if (!challengeDone(progress, 'overlap')) return { text: 'Take the west path to the Private Set Gardens.', target: 'to-gardens' };
-      return { text: 'Every gate is open. Step into a building to play a lesson.', target: 'to-ciphers' };
+      if (!user) return { text: 'Follow the path north to the Library of Arcane Ciphers.', target: 'to-sanctuary' };
+      if (!catacombsDone) return { text: 'Go to the Library. The Labyrinth of Hidden Flags starts there.', target: 'to-sanctuary' };
+      if (!bridgeDone) return { text: 'Go to the Library, then east to the Bridge of Shared Secrets.', target: 'to-sanctuary' };
+      if (!challengeDone(progress, 'seal')) return { text: 'Take the east path into the Fountain of Hash.', target: 'to-forest' };
+      if (!challengeDone(progress, 'overlap')) return { text: 'Take the west path to the Gardens of Hidden Overlap.', target: 'to-gardens' };
+      return { text: 'Every gate is open. Step into a landmark to play a lesson.', target: 'to-ciphers' };
     case 'sanctuary':
-      if (!user) return { text: 'Talk to Shannon, then log in to enter the Catacombs.', target: 'shannon' };
-      if (!catacombsDone) return { text: 'Take the south door into the Cipher Catacombs.', target: 'to-catacombs' };
-      if (!bridgeDone) return { text: 'Take the east door to the Key Exchange Bridge.', target: 'to-bridge' };
-      return { text: 'Every gate is open. The library buildings are outside.', target: 'to-grounds' };
+      if (!user) return { text: 'Talk to Shannon, then log in to enter the Labyrinth.', target: 'shannon' };
+      if (!catacombsDone) return { text: 'Take the south door into the Labyrinth of Hidden Flags.', target: 'to-catacombs' };
+      if (!bridgeDone) return { text: 'Take the east door to the Bridge of Shared Secrets.', target: 'to-bridge' };
+      return { text: 'Every gate is open. More lessons wait in the landmarks outside.', target: 'to-grounds' };
     case 'hall':
       return { text: 'Head east to the Shift gate.', target: 'hall-forward' };
     case 'caesar':
@@ -1273,11 +1334,11 @@ export function nextGoal(roomId: string, user: string | null, progress: Record<s
       return { text: 'Open the chest to review what you learned.', target: 'treasure' };
     case 'forest':
       return challengeDone(progress, 'seal')
-        ? { text: 'The shrine is open. Walk through, or head back to the grounds.', target: 'forest-cave' }
+        ? { text: 'The shrine is open. Visit the Fountain, or head back to the Crossroads.', target: 'forest-cave' }
         : { text: 'Prove the courier seal is weak at the shrine gate.', target: 'forest-gate' };
     case 'gardens':
       return challengeDone(progress, 'overlap')
-        ? { text: 'The orchard is open. Walk through, or head back to the grounds.', target: 'gardens-market' }
+        ? { text: 'The orchard is open. Walk through, or head back to the Crossroads.', target: 'gardens-market' }
         : { text: 'Sort what Carol learns from PSI at the orchard gate.', target: 'gardens-gate' };
     case 'bridge':
       return bridgeDone

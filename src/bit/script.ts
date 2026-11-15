@@ -11,6 +11,7 @@
 import { CHALLENGE_BY_ID, type Challenge } from '../dungeon/challenges.ts';
 import { TOPIC_BY_ID } from '../vis/registry.ts';
 import type { Expression } from './art.ts';
+import { LOCATION_BY_ID, locationOfRoom, type LocationId } from '../world/locations.ts';
 
 export type BitAction =
   /** Open a route. Gated routes still ask a guest to log in. */
@@ -127,6 +128,8 @@ export interface Place {
   challengeId?: string;
   /** Region of the cast for the Gemini view, when the room has one. */
   regionId?: string;
+  /** The world location the player stands in, for Bit's introduction and the Gemini view. */
+  locationId?: LocationId;
 }
 
 /** Library buildings outside, each with a shelf. */
@@ -165,15 +168,16 @@ export function placeOf({ route, layered, roomId, roomName, challengeId, regionI
     return { kind: 'page', name: PAGE_NAMES[base] ?? 'this page' };
   }
   const challenge = challengeId ? CHALLENGE_BY_ID[challengeId] : undefined;
+  const locationId = locationOfRoom(roomId).id;
   if (challenge) {
-    return { kind: isMinigame(challenge) ? 'minigame' : 'gate', name: challenge.title, challengeId: challenge.id, topicId: challenge.lesson, regionId };
+    return { kind: isMinigame(challenge) ? 'minigame' : 'gate', name: challenge.title, challengeId: challenge.id, topicId: challenge.lesson, regionId, locationId };
   }
-  if (roomId === 'grounds') return { kind: 'entrance', name: roomName, regionId };
-  if (roomId === 'sanctuary') return { kind: 'sanctuary', name: roomName, regionId };
-  if (SHELF_ROOMS.has(roomId)) return { kind: 'library', name: roomName, regionId };
-  if (CATACOMB_ROOMS.has(roomId)) return { kind: 'catacombs', name: roomName, regionId };
-  if (QUEST_ROOMS.has(roomId)) return { kind: 'quest', name: roomName, regionId };
-  return { kind: 'entrance', name: roomName, regionId };
+  if (roomId === 'grounds') return { kind: 'entrance', name: roomName, regionId, locationId };
+  if (roomId === 'sanctuary') return { kind: 'sanctuary', name: roomName, regionId, locationId };
+  if (SHELF_ROOMS.has(roomId)) return { kind: 'library', name: roomName, regionId, locationId };
+  if (CATACOMB_ROOMS.has(roomId)) return { kind: 'catacombs', name: roomName, regionId, locationId };
+  if (QUEST_ROOMS.has(roomId)) return { kind: 'quest', name: roomName, regionId, locationId };
+  return { kind: 'entrance', name: roomName, regionId, locationId };
 }
 
 /** Rules and objectives for each board or lab, in Bit's words. The expected answers stay on the server. */
@@ -217,24 +221,31 @@ export function placeScript(place: Place, vars: PlaceVars = {}): Script {
   };
   const toMenu: Partial<BitLine> = { choices: [{ id: 'menu', label: 'More options', next: 'menu' }, { id: 'done', label: 'Thanks, Bit' }] };
   const topic = place.topicId ? TOPIC_BY_ID[place.topicId] : undefined;
+  // Bit's introduction for the landmark, tying it to its lesson.
+  const here = place.locationId ? LOCATION_BY_ID[place.locationId] : undefined;
+  const intro = here?.intro ?? `This is ${place.name}.`;
+  // A location name inside a sentence: “the Fountain of Hash”.
+  const L = (id: LocationId) => LOCATION_BY_ID[id].name.replace(/^The /, 'the ');
   switch (place.kind) {
     case 'entrance':
       chain('place', [
-        ['neutral', `You’re on ${place.name}. The dirt path north leads to the Sanctuary.`],
-        ['curious', 'Each building outside is one area of the Library. Step inside to browse its shelf.'],
+        ['happy', intro],
+        ['neutral', `North is ${L('library')}. East leads to ${L('fountain')}, west to ${L('gardens')}.`],
+        ['curious', 'Each landmark around the compass rose holds part of the Library. Step inside to browse its shelf.'],
+        ['thinking', LOCATION_BY_ID.peaks.intro],
         ['encouraging', 'Follow the gold arrow when you’re not sure where to go next.'],
       ], toMenu);
       break;
     case 'sanctuary':
       chain('place', [
-        ['happy', 'This is the Library Sanctuary, the safe hub. Want to see how Alice sends Bob a secret?'],
+        ['happy', `${intro} Want to see how Alice sends Bob a secret?`],
       ], { choices: [{ id: 'demo', label: 'Show me', action: { kind: 'demo' } }, { id: 'more', label: 'Where do I go?', next: 'place-2' }] });
-      lines.push(line('place-2', 'neutral', 'The south door leads into the Cipher Catacombs. The east door goes to the Key Exchange Bridge.', { next: 'place-3' }));
-      lines.push(line('place-3', 'curious', 'The five buildings outside are the Library. Each holds animated visualizations.', toMenu));
+      lines.push(line('place-2', 'neutral', `The south gate opens ${L('labyrinth')}. The east door leads to ${L('bridge')}.`, { next: 'place-3' }));
+      lines.push(line('place-3', 'curious', 'The landmarks outside are wings of the Library too: the Forge, the Citadel, the Ruins, and the Observatory.', toMenu));
       break;
     case 'library':
       chain('place', [
-        ['happy', `That’s ${place.name}. Want to see how Alice sends Bob a secret?`],
+        ['happy', `${here && place.locationId !== 'gardens' ? intro : `That’s ${place.name.replace(/^The /, 'the ')}.`} Want a demo?`],
       ], { choices: [{ id: 'demo', label: 'Show me', action: { kind: 'demo' } }, { id: 'more', label: 'What’s here?', next: 'place-2' }] });
       lines.push(line('place-2', 'neutral', 'Each shelf holds animated visualizations. Open one and press Play to step through it.', { next: 'place-3' }));
       lines.push(line('place-3', 'curious', 'The Dictionary explains the terms. Learning paths put lessons in a good order.', {
@@ -247,14 +258,16 @@ export function placeScript(place: Place, vars: PlaceVars = {}): Script {
       break;
     case 'catacombs':
       chain('place', [
-        ['curious', 'Welcome to the Cipher Catacombs. Three gates stand between you and the treasure room.'],
+        ['curious', intro],
+        ['neutral', 'Three gates stand between you and the treasure room.'],
         ['thinking', 'Each gate states its method. Your job is to undo it and find one word.'],
         ['encouraging', 'Inspect a gate with Space. I can give hints, gently at first.'],
       ], toMenu);
       break;
     case 'quest':
       chain('place', [
-        ['curious', `This is ${place.name}. Talk to the people here, then try the gate.`],
+        ['curious', intro],
+        ['neutral', 'Talk to the people here, then try the gate.'],
         ['thinking', 'Ask each of them what they can see. Alice, Bob, and Eve each know different things.'],
       ], toMenu);
       break;

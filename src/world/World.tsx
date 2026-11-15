@@ -10,6 +10,8 @@ import {
   canEnter,
   loadMotion,
   loadPlace,
+  locationOf,
+  markDiscovered,
   loadResume,
   markWelcome,
   nextGoal,
@@ -37,6 +39,8 @@ import { placeOf } from '../bit/script';
 import { Landing } from './Landing';
 import { paint } from './draw';
 import type { Spot } from './map';
+import { LOCATION_BY_ID, LOCATIONS, inSentence, type LocationId } from './locations';
+import { LocationIcon } from './LocationIcon';
 import './world.css';
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -117,6 +121,20 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   const [query, setQuery] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const [status, setStatus] = useState('');
+  // Entering a new location shows its name and topics for a moment.
+  const [discovery, setDiscovery] = useState<{ id: LocationId; first: boolean; n: number } | null>(null);
+  const lastLocation = useRef<LocationId | null>(null);
+  useEffect(() => {
+    const id = locationOf(roomId).id;
+    if (lastLocation.current === id) return;
+    const first = markDiscovered(id);
+    const initialVisit = lastLocation.current === null;
+    lastLocation.current = id;
+    if (initialVisit && !first) return;
+    setDiscovery(prev => ({ id, first, n: (prev?.n ?? 0) + 1 }));
+    const timer = window.setTimeout(() => setDiscovery(null), 3400);
+    return () => window.clearTimeout(timer);
+  }, [roomId]);
   const [motion, setMotion] = useState(loadMotion);
   const [reducedSystem, setReducedSystem] = useState(false);
   const [extra, setExtra] = useState<Record<string, 'done'>>({});
@@ -161,7 +179,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
   const wasLayered = useRef(layered);
   useEffect(() => {
     if (wasLayered.current && !layered) {
-      setStatus(challengeId ? `Back at ${CHALLENGE_BY_ID[challengeId]?.title ?? 'the gate'}.` : `Back in ${roomOf(roomRef.current).name}.`);
+      setStatus(challengeId ? `Back at ${CHALLENGE_BY_ID[challengeId]?.title ?? 'the gate'}.` : `Back in ${inSentence(roomOf(roomRef.current).name)}.`);
       if (!challengeId) requestAnimationFrame(() => bodyRef.current?.querySelector<HTMLButtonElement>('.cw-prompt-btn, .cw-bottom .btn')?.focus());
     }
     if (!wasLayered.current && layered) remember();
@@ -232,7 +250,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
     if (mission.gate === 'seal') {
       if (!canEnter('forest', userRef.current, progressRef.current)) {
         if (!userRef.current) {
-          afterLogin('Log in to enter Hash Forest for the Maritime lab and Forged seal gate.', () => {
+          afterLogin('Log in to enter the Fountain of Hash for the Maritime lab and Forged seal gate.', () => {
             goTo('forest');
             saveResume('seal');
             setChallengeId('seal');
@@ -240,7 +258,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
           });
           return;
         }
-        setStatus('Hash Forest is not open yet from here.');
+        setStatus('The Fountain of Hash is not open yet from here.');
         return;
       }
       goTo('forest');
@@ -320,7 +338,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
         return;
       }
       if (!userRef.current && roomOf(spot.to).entry === 'auth') {
-        afterLogin(`Log in to enter ${spot.name} and save solved gates. You can keep reading the entrance.`, () => goTo(spot.to!, spot.arrive));
+        afterLogin(`Log in to enter ${inSentence(spot.name)} and save solved gates. You can keep reading the entrance.`, () => goTo(spot.to!, spot.arrive));
         return;
       }
       setPreview(spot);
@@ -421,6 +439,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
             y: pos.current.y,
             facing: facing.current,
             spots: current.spots,
+            decor: current.decor,
             openCells: openCellsOf(current, progressRef.current),
             insetTop,
             insetBottom,
@@ -537,16 +556,17 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
     challengeId: challengeId || undefined,
     regionId: room.spots.find(spot => spot.regionId)?.regionId,
   }), [route, layered, roomId, room.name, challengeId]);
-  const backLabel = challengeId ? `Back to ${CHALLENGE_BY_ID[challengeId]?.title ?? 'the gate'}` : `Back to ${room.name}`;
+  const backLabel = challengeId ? `Back to ${CHALLENGE_BY_ID[challengeId]?.title ?? 'the gate'}` : `Back to ${inSentence(room.name)}`;
+  const here = locationOf(roomId);
   const bridgeOpen = merged[challengeItemId('wire')] === 'done';
   const sealOpen = merged[challengeItemId('seal')] === 'done';
   const overlapOpen = merged[challengeItemId('overlap')] === 'done';
   const progressBits = [
-    { id: 'catacombs', label: 'Catacombs', done: solved, total: 3 },
-    { id: 'bridge', label: 'Bridge', done: bridgeOpen ? 1 : 0, total: 1 },
-    { id: 'forest', label: 'Forest', done: sealOpen ? 1 : 0, total: 1 },
-    { id: 'gardens', label: 'Gardens', done: overlapOpen ? 1 : 0, total: 1 },
-  ];
+    { id: 'catacombs', location: 'labyrinth' as const, done: solved, total: 3 },
+    { id: 'bridge', location: 'bridge' as const, done: bridgeOpen ? 1 : 0, total: 1 },
+    { id: 'forest', location: 'fountain' as const, done: sealOpen ? 1 : 0, total: 1 },
+    { id: 'gardens', location: 'gardens' as const, done: overlapOpen ? 1 : 0, total: 1 },
+  ].map(bit => ({ ...bit, label: LOCATION_BY_ID[bit.location].short, name: LOCATION_BY_ID[bit.location].name }));
   return (
     <>
     {layered && (
@@ -555,7 +575,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
         <button type="button" className="cw-strip-back" onClick={() => { location.hash = 'world'; }}>
           <span aria-hidden="true">◂ </span>{backLabel}
         </button>
-        <span className="cw-strip-where">{room.wing}{room.wing === 'Cipher Catacombs' ? ` · Gates ${solved}/3` : ''}</span>
+        <span className="cw-strip-where">{here.short}{here.id === 'labyrinth' ? ` · Gates ${solved}/3` : ''}</span>
       </nav>
     )}
     {layered && <div className="cw-layer">{layer}</div>}
@@ -569,8 +589,9 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
               <div className="cw-where">
                 <p className="cw-kicker">Crypto Dungeon</p>
                 <h1 className="cw-title">{room.name}</h1>
+                <p className="cw-subtitle">{here.subtitle}</p>
                 <p className="cw-place">
-                  {room.wing !== room.name && room.wing !== 'Outside' && <span>{room.wing}</span>}
+                  {room.wing !== room.name && <span>{room.wing}</span>}
                   {user
                     ? <span className="cw-pill">Gates {solved}/3</span>
                     : <span className="cw-pill guest">Guest</span>}
@@ -579,8 +600,8 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
             </div>
             <div className="cw-progress" aria-label="Quest progress">
               {progressBits.map(bit => (
-                <span key={bit.id} className={`cw-quest${bit.done >= bit.total ? ' done' : ''}`} title={`${bit.label}: ${bit.done}/${bit.total}`}>
-                  <i aria-hidden="true" />
+                <span key={bit.id} className={`cw-quest${bit.done >= bit.total ? ' done' : ''}`} title={`${bit.name}: ${bit.done}/${bit.total}`}>
+                  <LocationIcon id={bit.location} size={14} />
                   <b>{bit.label}</b>
                   <em>{bit.done}/{bit.total}</em>
                 </span>
@@ -597,6 +618,7 @@ export function World({ layer }: { layer?: ReactNode } = {}) {
           </header>
           {!modal && (
             <>
+              {discovery && <Discovery key={discovery.n} id={discovery.id} first={discovery.first} />}
               <p className="cw-goal-banner" role="status">
                 <span>Next</span>
                 <b>{goal.text}</b>
@@ -801,21 +823,21 @@ function promptFor(spot: Spot, user: string | null, progress: Record<string, str
   if (spot.kind === 'shelf') return `${spot.name}. Press Space to browse.`;
   if (spot.kind === 'chest') return 'The treasure chest. Press Space to open it.';
   if (spot.kind === 'future') return `${spot.name} is not open yet.`;
-  return `Near ${spot.name}. Press Space to use.`;
+  return `Near ${inSentence(spot.name)}. Press Space to use.`;
 }
 
 function buttonFor(spot: Spot, user: string | null, progress: Record<string, string>): string {
-  if (spot.kind === 'person') return `Talk to ${spot.name}`;
-  if (spot.kind === 'shelf') return `Browse ${spot.name}`;
-  if (spot.kind === 'future') return `Inspect ${spot.name}`;
+  if (spot.kind === 'person') return `Talk to ${inSentence(spot.name)}`;
+  if (spot.kind === 'shelf') return `Browse ${inSentence(spot.name)}`;
+  if (spot.kind === 'future') return `Inspect ${inSentence(spot.name)}`;
   if (spot.kind === 'chest') return 'Open the chest';
   if (spot.kind === 'gate') {
     const open = spot.requires?.every(id => progress[challengeItemId(id)] === 'done');
-    if (open) return spot.to ? `Enter ${spot.name}` : `Review ${spot.name}`;
-    return user ? `Inspect ${spot.name}` : `Read ${spot.name}`;
+    if (open) return spot.to ? `Enter ${inSentence(spot.name)}` : `Review ${inSentence(spot.name)}`;
+    return user ? `Inspect ${inSentence(spot.name)}` : `Read ${inSentence(spot.name)}`;
   }
-  if (spot.kind === 'door' && spot.to && !user && roomOf(spot.to).entry === 'auth') return `Log in to enter ${spot.name}`;
-  return `Enter ${spot.name}`;
+  if (spot.kind === 'door' && spot.to && !user && roomOf(spot.to).entry === 'auth') return `Log in to enter ${inSentence(spot.name)}`;
+  return `Enter ${inSentence(spot.name)}`;
 }
 
 /** A titled panel with a close button in the header, a body, and an ordered row of actions at the bottom. */
@@ -835,6 +857,21 @@ function Panel({ title, onClose, footer, wide = false, children }: { title: stri
   );
 }
 
+/** A banner with the location's icon, name, and topics, shown when the player arrives. */
+function Discovery({ id, first }: { id: LocationId; first: boolean }) {
+  const location = LOCATION_BY_ID[id];
+  return (
+    <div className="cw-discover" role="status" style={{ ['--loc' as string]: location.accent.glow, ['--loc-bg' as string]: location.accent.dark }}>
+      <LocationIcon id={id} size={40} />
+      <div>
+        <p className="cw-discover-kicker">{first ? 'New location discovered' : 'Entering'}</p>
+        <p className="cw-discover-name">{location.name}</p>
+        <p className="cw-discover-sub">{location.subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
 function RoomList({ user, progress, onClose, onGo, onFuture, onOpen }: {
   user: string | null;
   progress: Record<string, string>;
@@ -848,9 +885,14 @@ function RoomList({ user, progress, onClose, onGo, onFuture, onOpen }: {
   return (
     <Panel title="Map" onClose={onClose} wide>
       <p className="cw-panel-lede">Jump to any room you have unlocked. You do not have to walk there.</p>
-      {wings.map(wing => (
+      {wings.map(wing => {
+        const place = LOCATIONS.find(item => item.name === wing);
+        return (
         <section key={wing} className="cw-group">
-          <h3>{wing}</h3>
+          <h3 className="cw-loc-head">
+            {place && <LocationIcon id={place.id} size={22} />}
+            <span>{wing}{place && <small>{place.subtitle}</small>}</span>
+          </h3>
           {ROOM_LIST.filter(id => ROOMS[id].wing === wing).map(id => {
             const room = ROOMS[id];
             const allowed = canEnter(id, user, progress);
@@ -865,14 +907,19 @@ function RoomList({ user, progress, onClose, onGo, onFuture, onOpen }: {
             );
           })}
         </section>
-      ))}
+        );
+      })}
       {future.length > 0 && (
         <section className="cw-group">
           <h3>Coming later</h3>
-          {future.map(spot => (
+          {future.map(spot => {
+            const place = LOCATIONS.find(item => item.name === spot.name);
+            return (
             <div key={spot.id} className="cw-item locked">
+              {place && <LocationIcon id={place.id} size={28} />}
               <div>
                 <b>{spot.name}</b>
+                {place && <small className="cw-item-sub">{place.subtitle}</small>}
                 <p>{spot.summary}</p>
               </div>
               <div className="cw-item-actions">
@@ -880,7 +927,8 @@ function RoomList({ user, progress, onClose, onGo, onFuture, onOpen }: {
                 {spot.lesson && <button type="button" className="btn ghost" onClick={() => onOpen(spot.lesson!)}>Lesson</button>}
               </div>
             </div>
-          ))}
+            );
+          })}
         </section>
       )}
     </Panel>

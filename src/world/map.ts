@@ -7,14 +7,34 @@ export type Tile =
   | 'paving' | 'carpet' | 'grate' | 'vent' | 'banner' | 'bars' | 'pillar' | 'crystal'
   // Buildings on the grounds. Each footprint is one rectangle of the same tile, with its door on the bottom row.
   | 'library' | 'keep' | 'crypt' | 'temple' | 'cabin' | 'greenhouse'
-  | 'sign';
+  | 'sign'
+  // Location landmarks. Each footprint is one rectangle of the same tile, drawn once like a building.
+  | 'fountain' | 'tower' | 'beds' | 'stall' | 'cave' | 'table'
+  // Location props, one tile each.
+  | 'lantern' | 'signpost' | 'shrine' | 'seal' | 'anvil' | 'marker' | 'letters' | 'archway'
+  // Location wall pieces.
+  | 'stained' | 'flag';
 
 export const BUILDINGS = new Set<Tile>(['library', 'keep', 'crypt', 'temple', 'cabin', 'greenhouse']);
+
+/** Multi-tile landmarks: solid, drawn once from their top-left tile, and sorted by their front row. */
+export const LANDMARKS = new Set<Tile>(['fountain', 'tower', 'beds', 'stall', 'cave', 'table']);
+
+/** Flat artwork over the ground of a room, in tiles. It never blocks movement. */
+export interface Decor {
+  art: 'compass' | 'pages' | 'runes' | 'hash-stream';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 const SOLID = new Set<Tile>([
   'wall', 'torch', 'shelf', 'desk', 'chest', 'gate', 'tree', 'water', 'block', 'pedestal', 'mix',
   'bush', 'rock', 'deadtree', 'vent', 'banner', 'bars', 'pillar', 'crystal',
   'library', 'keep', 'crypt', 'temple', 'cabin', 'greenhouse', 'sign',
+  'fountain', 'tower', 'beds', 'stall', 'cave', 'table',
+  'lantern', 'signpost', 'shrine', 'seal', 'anvil', 'marker', 'stained', 'flag',
 ]);
 
 /**
@@ -33,6 +53,13 @@ const SHAPES: Partial<Record<Tile, [number, number, number, number]>> = {
   chest: [0.1, 0.25, 0.9, 0.95],
   pedestal: [0.2, 0.45, 0.8, 0.95],
   sign: [0.3, 0.5, 0.7, 1],
+  table: [0, 0.3, 1, 0.95],
+  lantern: [0.32, 0.55, 0.68, 1],
+  signpost: [0.3, 0.5, 0.7, 1],
+  shrine: [0.15, 0.4, 0.85, 1],
+  seal: [0.12, 0.35, 0.88, 0.95],
+  anvil: [0.12, 0.5, 0.88, 0.95],
+  marker: [0.32, 0.55, 0.68, 1],
 };
 
 /** The player's feet, relative to their position: half width, then the top and bottom offsets. */

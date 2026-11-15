@@ -113,7 +113,7 @@ export function VisPage({ topicId, code, frames, stage, actions = [], autoplay =
       {topicId === 'hash' && !tour && (
         <div className="vis-mission">
           <MissionRail step="visualize" />
-          <p className="vis-mission-note">Gemini tutors in Hash Forest explain concepts; they never mark the gate complete. Authored hints stay usable if Gemini is offline.</p>
+          <p className="vis-mission-note">Gemini tutors in the Fountain of Hash explain concepts; they never mark the gate complete. Authored hints stay usable if Gemini is offline.</p>
         </div>
       )}
       <header className="vis-top">

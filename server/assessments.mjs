@@ -66,7 +66,7 @@ const TASKS = {
       },
       {
         id: 'w3',
-        prompt: 'The Hash Forest toy-seal lab found another word with the same seal as LEAF. That experiment mainly shows:',
+        prompt: 'The Fountain of Hash toy-seal lab found another word with the same seal as LEAF. That experiment mainly shows:',
         choices: [
           { id: 'sha-broken', label: 'That SHA-256 collisions are easy' },
           { id: 'weak-seal', label: 'That a weak checksum does not authenticate a sender' },

@@ -5,7 +5,12 @@ import vegetationUrl from '../assets/pixel-crawler/vegetation.png';
 import logUrl from '../assets/pixel-crawler/log.png';
 import { CHARACTER_BY_ID } from '../characters/cast';
 import { SPRITE_H, SPRITE_W, sprite, type Facing } from '../characters/sprites';
-import { BUILDINGS, type Spot, type Tile } from './map';
+import { BUILDINGS, LANDMARKS, type Decor, type Spot, type Tile } from './map';
+import {
+  OUTLINE, SHARE_THRESHOLD, drawArchway, drawBuildingArt, drawDecor, drawLandmark, drawLetters, drawPillarLetters, drawProp, drawWallPiece,
+  landmarkGlow, litShrines, propGlow,
+} from './landmarks';
+import { LOCATION_BY_ID } from './locations';
 
 export interface PaintState {
   map: Tile[][];
@@ -26,6 +31,8 @@ export interface PaintState {
   near?: Spot | null;
   /** Bit, the cipher companion, floating beside the player. `image` is its 16 × 16 sprite frame. */
   companion?: { x: number; y: number; image: HTMLCanvasElement } | null;
+  /** Flat location artwork over the ground. */
+  decor?: Decor[];
 }
 
 function load(src: string) {
@@ -84,12 +91,12 @@ function groundOf(tile: Tile | undefined): Ground | null {
     case 'stone': case 'engraving': case 'grate': return 'dungeon';
     case 'plank': return 'sand';
     case 'paving': return 'paving';
-    case 'wall': case 'torch': case 'vent': case 'banner': return 'wall';
+    case 'wall': case 'torch': case 'vent': case 'banner': case 'stained': case 'flag': return 'wall';
     default: return null;
   }
 }
 
-const WALLISH = new Set<Tile>(['wall', 'torch', 'vent', 'banner']);
+const WALLISH = new Set<Tile>(['wall', 'torch', 'vent', 'banner', 'stained', 'flag']);
 
 function hash(x: number, y: number, salt = 0) {
   let h = (x * 374761393 + y * 668265263 + salt * 2246822519) | 0;
@@ -110,7 +117,11 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   // On a narrow screen a large room would shrink to unreadable tiles: keep tiles at least 26 px and follow the player.
   const narrow = viewPxW / dpr < 640;
   const zoom = narrow ? Math.max(fit, 26 / 16) : fit;
-  const unit = zoom * dpr;
+  // Snap each source pixel to a whole number of device pixels when that costs little, so the
+  // pixel art stays crisp: round up when the camera follows the player, round down when the room
+  // must fit on screen.
+  const raw = zoom * dpr;
+  const unit = narrow ? Math.ceil(raw) : Math.floor(raw) >= 1 && Math.floor(raw) / raw >= 0.75 ? Math.floor(raw) : raw;
   const tile = 16 * unit;
   const viewW = viewPxW / tile;
   const viewH = viewPxH / tile;
@@ -146,10 +157,11 @@ export function paint(ctx: CanvasRenderingContext2D, width: number, height: numb
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) drawGround(ctx, ctxInfo, x, y, sx(x), sy(y));
   }
-  // 2. Flat decoration on the ground and on wall faces.
+  // 2. Flat decoration on the ground and on wall faces, then the location's flat artwork.
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) drawDecal(ctx, ctxInfo, x, y, sx(x), sy(y));
   }
+  for (const decor of state.decor ?? []) drawDecor(ctx, ctxInfo, decor, sx(decor.x), sy(decor.y));
 
   // Soft pulse under whatever the player can use right now.
   if (state.near) {
@@ -473,6 +485,8 @@ function drawDecal(ctx: CanvasRenderingContext2D, room: Room, x: number, y: numb
     }
   }
   if (t === 'grate') cell(ctx, dungeon, 7, 10, px, py, unit);
+  if (t === 'letters') drawLetters(ctx, room, x, y, px, py);
+  if (t === 'stained' || t === 'flag') drawWallPiece(ctx, room, t, x, px, py);
   if (t === 'engraving') {
     ctx.fillStyle = 'rgba(15, 30, 30, 0.55)';
     ctx.fillRect(px + 2 * unit, py + 3 * unit, 12 * unit, 10 * unit);
@@ -650,6 +664,27 @@ function standing(ctx: CanvasRenderingContext2D, room: Room, x: number, y: numbe
     draw.depth = y + h - 1;
     return draw;
   }
+  if (LANDMARKS.has(t)) {
+    if (at(room, x - 1, y) === t || at(room, x, y - 1) === t) return null;
+    let w = 0;
+    while (at(room, x + w, y) === t) w++;
+    let h = 0;
+    while (at(room, x, y + h) === t) h++;
+    const draw: Standing = () => drawLandmark(ctx, room, t, x, y, w, h, px, py);
+    draw.depth = y + h - 1 + 0.9;
+    return draw;
+  }
+  if (t === 'lantern' || t === 'signpost' || t === 'shrine' || t === 'seal' || t === 'anvil' || t === 'marker') {
+    return () => drawProp(ctx, room, t, x, y, px, py);
+  }
+  if (t === 'archway') {
+    const arch: Standing = () => {
+      if (ready(dungeon)) ctx.drawImage(dungeon, 0, 7 * 16, 32, 48, px, py - room.tile / 2, room.tile, room.tile * 1.5);
+      drawArchway(ctx, room, px, py);
+    };
+    arch.depth = y - 0.6;
+    return arch;
+  }
   const { unit, tile } = room;
   const h = hash(x, y, 11);
   const cx = px + tile / 2;
@@ -755,19 +790,24 @@ interface BuildingStyle {
   base: string;
   dark: string;
   light: string;
-  emblem: 'book' | 'key' | 'hash' | 'wheel' | 'circuit' | 'venn';
+  emblem: 'book' | 'key' | 'flame' | 'wheel' | 'star' | 'venn';
 }
 
+/** Each grounds building is a location; its roof takes the location's accent palette. */
+const style = (id: keyof typeof LOCATION_BY_ID, roof: BuildingStyle['roof'], emblem: BuildingStyle['emblem']): BuildingStyle => {
+  const { base, dark, light } = LOCATION_BY_ID[id].accent;
+  return { roof, base, dark, light, emblem };
+};
+
 const BUILDING_STYLES: Partial<Record<Tile, BuildingStyle>> = {
-  library: { roof: 'pitched', base: '#4f6086', dark: '#36425e', light: '#7488b2', emblem: 'book' },
-  temple: { roof: 'pitched', base: '#b4552f', dark: '#863b1e', light: '#d97a4b', emblem: 'wheel' },
-  cabin: { roof: 'pitched', base: '#527c3b', dark: '#3a5c29', light: '#76a052', emblem: 'circuit' },
-  crypt: { roof: 'pitched', base: '#2f434c', dark: '#1e2d33', light: '#45606b', emblem: 'hash' },
-  keep: { roof: 'flat', base: '#5b6573', dark: '#3a414b', light: '#8a95a5', emblem: 'key' },
+  library: style('library', 'pitched', 'book'),
+  temple: style('ruins', 'pitched', 'wheel'),
+  cabin: style('observatory', 'pitched', 'star'),
+  crypt: style('forge', 'pitched', 'flame'),
+  keep: style('citadel', 'flat', 'key'),
   greenhouse: { roof: 'glass', base: '#a9dbe0', dark: '#6fa8ae', light: '#e6f7f8', emblem: 'venn' },
 };
 
-const OUTLINE = '#1b1410';
 
 /** One building: shadow, two rows of facade, a roof over the rest, and an emblem over the door. */
 function drawBuilding(
@@ -804,8 +844,13 @@ function drawBuilding(
       else if (kind === 'crypt') cell(ctx, dungeon, 3 + edge(i), 16 + r, fx, fy, u);
       else if (kind === 'temple') cell(ctx, floors, 16 + (i % 3), 1 + ((i + r) % 3), fx, fy, u);
       else if (kind === 'cabin') {
-        if (ready(logs)) ctx.drawImage(logs, fx, fy, Math.ceil(T) + 1, Math.ceil(T) + 1);
-        else fill(ctx, '#8d5a32', fx, fy, T);
+        // Dressed stone in the Observatory's night blue.
+        fill(ctx, style.dark, fx, fy, T);
+        ctx.fillStyle = style.base;
+        for (let b = 0; b < 4; b++) {
+          const off = (b + i) % 2 ? 0 : 4 * u;
+          for (let c = -1; c < 2; c++) ctx.fillRect(fx + off + c * 8 * u + u, fy + b * 4 * u + u, 7 * u, 3 * u);
+        }
       } else if (kind === 'greenhouse') {
         if (r === 1) cell(ctx, dungeon, 6 + edge(i), 17, fx, fy, u);
         else drawGlass(ctx, fx, fy, T, T, u, style, x0 + i);
@@ -824,14 +869,13 @@ function drawBuilding(
     } else if (kind === 'library' && i % 2 === 1) {
       drawWindow(ctx, fx, upper, u, '#2b2b33', '#ffcf6b', true);
     } else if (kind === 'cabin' && i % 2 === 1) {
-      drawWindow(ctx, fx, upper, u, '#4e2f17', '#8ee8de', false);
+      drawWindow(ctx, fx, upper, u, '#141a33', '#bfa8ff', true);
     } else if (kind === 'keep' && i % 2 === 1) {
       ctx.fillStyle = '#111';
       ctx.fillRect(fx + 7 * u, upper + 5 * u, 2 * u, 8 * u);
       ctx.fillRect(fx + 5.5 * u, upper + 8 * u, 5 * u, 1.5 * u);
-    } else if (kind === 'crypt' && (i === 1 || i === w - 2)) {
-      cell(ctx, dungeon, 4, 18, fx, upper, u);
     }
+    if (kind === 'temple' && (i === 0 || i === w - 1 || nearDoor)) drawPillarLetters(ctx, room, i, fx, upper);
   }
 
   // Roof over the remaining rows, overhanging the walls a little and rising above the top row.
@@ -890,20 +934,11 @@ function drawBuilding(
       merlon(rx, yy, 4 * u, 4 * u);
       merlon(rx + rw - 4 * u, yy, 4 * u, 4 * u);
     }
-    // Flag on a pole in the middle of the roof.
-    const poleX = rx + rw / 2;
-    ctx.fillStyle = '#3e2723';
-    ctx.fillRect(poleX, ry - 10 * u, u, rh / 2 + 10 * u);
-    const wave = room.reduced ? 0 : Math.round(Math.sin(room.time / 300) * 1.5) * u;
-    ctx.fillStyle = '#c62828';
-    ctx.fillRect(poleX + u, ry - 10 * u, 8 * u, 5 * u + wave);
-    ctx.fillStyle = '#f6d46b';
-    ctx.fillRect(poleX + 3 * u, ry - 8.5 * u, 3 * u, 2 * u);
   } else {
     drawGlass(ctx, rx, ry, rw, rh, u, style, x0, true);
   }
 
-  // Temple pediment, cabin chimney, crypt runes.
+  // The Ruins keep a cracked pediment.
   if (kind === 'temple') {
     const cx = px + (w * T) / 2;
     const base = ry + rh;
@@ -920,28 +955,8 @@ function drawBuilding(
     ctx.lineTo(cx + 1.6 * T - u, base - u);
     ctx.fill();
   }
-  if (kind === 'cabin') {
-    const cx = rx + rw - 1.4 * T;
-    ctx.fillStyle = OUTLINE;
-    ctx.fillRect(cx - u, ry - 7 * u, 7 * u, 11 * u);
-    ctx.fillStyle = '#8d4a2f';
-    ctx.fillRect(cx, ry - 6 * u, 5 * u, 9 * u);
-    ctx.fillStyle = '#5d2f1d';
-    ctx.fillRect(cx, ry - 6 * u, 5 * u, u);
-    if (!room.reduced) {
-      const t = (room.time / 900) % 1;
-      ctx.fillStyle = `rgba(230, 230, 230, ${0.55 * (1 - t)})`;
-      ctx.fillRect(cx + (1 + t * 3) * u, ry - (9 + t * 8) * u, (3 + t * 2) * u, (3 + t * 2) * u);
-    }
-  }
-  if (kind === 'crypt') {
-    const glow = room.reduced ? 1 : 0.7 + Math.sin(room.time / 400) * 0.3;
-    ctx.fillStyle = `rgba(77, 208, 225, ${glow})`;
-    for (let xx = rx + 4 * u, i = 0; xx < rx + rw - 4 * u; xx += 6 * u, i++) {
-      ctx.fillRect(xx, ry + 5 * u, 3 * u, u);
-      if (i % 2) ctx.fillRect(xx + u, ry + 4 * u, u, 3 * u);
-    }
-  }
+  // The location's silhouette: spires, towers, chimney, wheel, dome.
+  drawBuildingArt(ctx, room, kind, w, h, px, py, doors);
 
   // Emblem plaque over the first door.
   const door = doors[0] ?? Math.floor(w / 2);
@@ -999,6 +1014,9 @@ function drawEmblem(ctx: CanvasRenderingContext2D, emblem: BuildingStyle['emblem
     ctx.fillRect(ix + u, iy + u, 3.5 * u, 4 * u);
     ctx.fillRect(ix + 5.5 * u, iy + u, 3.5 * u, 4 * u);
   } else if (emblem === 'key') {
+    // Twin keys: the gold one is public, the silver one stays in the vault.
+    ctx.fillStyle = '#90a4ae';
+    ctx.fillRect(ix + 5, iy + 4 * u, 9 * u, u);
     ctx.fillStyle = '#d4a017';
     ctx.fillRect(ix, iy + u, 4 * u, 4 * u);
     ctx.fillRect(ix + 4 * u, iy + 2.5 * u, 6 * u, u);
@@ -1006,12 +1024,17 @@ function drawEmblem(ctx: CanvasRenderingContext2D, emblem: BuildingStyle['emblem
     ctx.fillRect(ix + 6 * u, iy + 3.5 * u, u, 1.5 * u);
     ctx.fillStyle = '#f3e3bd';
     ctx.fillRect(ix + 1.5 * u, iy + 2.5 * u, u, u);
-  } else if (emblem === 'hash') {
-    ctx.fillStyle = '#00838f';
-    ctx.fillRect(ix + 2.5 * u, iy, u, 6 * u);
-    ctx.fillRect(ix + 6 * u, iy, u, 6 * u);
-    ctx.fillRect(ix + u, iy + 1.5 * u, 8 * u, u);
-    ctx.fillRect(ix + u, iy + 4 * u, 8 * u, u);
+  } else if (emblem === 'flame') {
+    // A flame over a key: one key seals and opens.
+    ctx.fillStyle = '#ff6f00';
+    ctx.fillRect(ix + 1, iy, 3 * u, 4 * u);
+    ctx.fillRect(ix + 1.5 * u, iy - u, 2 * u, u);
+    ctx.fillStyle = '#ffd27a';
+    ctx.fillRect(ix + 1.5 * u, iy + 1.5 * u, 1.5 * u, 2 * u);
+    ctx.fillStyle = '#b8860b';
+    ctx.fillRect(ix + 5 * u, iy + 2 * u, 3 * u, 3 * u);
+    ctx.fillRect(ix + 8 * u, iy + 3 * u, 2 * u, u);
+    ctx.fillRect(ix + 9 * u, iy + 4 * u, u, 1.5 * u);
   } else if (emblem === 'wheel') {
     ctx.fillStyle = '#b8860b';
     ctx.beginPath();
@@ -1024,14 +1047,17 @@ function drawEmblem(ctx: CanvasRenderingContext2D, emblem: BuildingStyle['emblem
     ctx.fillStyle = '#b8860b';
     ctx.fillRect(ix + 4.5 * u, iy, u, 6 * u);
     ctx.fillRect(ix + 2 * u, iy + 2.5 * u, 6 * u, u);
-  } else if (emblem === 'circuit') {
-    ctx.fillStyle = '#00897b';
-    ctx.fillRect(ix, iy + 2.5 * u, 10 * u, u);
-    ctx.fillRect(ix + 3 * u, iy, u, 3 * u);
-    ctx.fillRect(ix + 7 * u, iy + 3 * u, u, 3 * u);
-    ctx.fillStyle = '#f6b400';
-    ctx.fillRect(ix + 2.5 * u, iy, 2 * u, 2 * u);
-    ctx.fillRect(ix + 6.5 * u, iy + 4 * u, 2 * u, 2 * u);
+  } else if (emblem === 'star') {
+    // Three beams meeting in one star.
+    ctx.fillStyle = '#5c6fb8';
+    ctx.fillRect(ix, iy + 5 * u, u, u);
+    ctx.fillRect(ix + u, iy + 4 * u, u, u);
+    ctx.fillRect(ix + 4.5 * u, iy + 3 * u, u, 3 * u);
+    ctx.fillRect(ix + 9 * u, iy + 5 * u, u, u);
+    ctx.fillRect(ix + 8 * u, iy + 4 * u, u, u);
+    ctx.fillStyle = '#7e57c2';
+    ctx.fillRect(ix + 3.5 * u, iy + 1 * u, 3 * u, u);
+    ctx.fillRect(ix + 4.5 * u, iy, u, 3 * u);
   } else {
     ctx.globalAlpha = 0.85;
     ctx.fillStyle = '#1e88e5';
@@ -1079,6 +1105,13 @@ function drawLight(
         radius = tile * 2.2;
         cy = sy(y) + tile * 1.4;
       }
+      const extra = [
+        ...(t && LANDMARKS.has(t) && at(room, x - 1, y) !== t && at(room, x, y - 1) !== t ? landmarkGlow(room, t, x, span(room, x, y, 1, 0), span(room, x, y, 0, 1)) : []),
+        ...(t && BUILDINGS.has(t) && at(room, x - 1, y) !== t && at(room, x, y - 1) !== t ? buildingGlow(room, t, span(room, x, y, 1, 0), span(room, x, y, 0, 1)) : []),
+      ];
+      const prop = propGlow(room, t, x, y);
+      if (prop) extra.push(prop);
+      for (const g of extra) glowAt(ctx, sx(x) + g.x * tile, sy(y) + g.y * tile, g.radius * tile, g.colour);
       if (!colour) continue;
       const cx = sx(x) + tile / 2;
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
@@ -1088,7 +1121,71 @@ function drawLight(
       ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
     }
   }
+  // Peaks of Shattered Secrets: each lit shrine sends its share toward the seal. The seal itself
+  // lights only once the threshold is met (see the seal prop), so one beam alone opens nothing.
+  const lit = litShrines(room);
+  const shrineCells: [number, number][] = [];
+  let seal: [number, number] | null = null;
+  for (let y = 0; y < room.rows; y++) {
+    for (let x = 0; x < room.cols; x++) {
+      if (room.map[y][x] === 'shrine') shrineCells.push([x, y]);
+      else if (room.map[y][x] === 'seal') seal = [x, y];
+    }
+  }
+  if (seal && shrineCells.length) {
+    shrineCells.sort((a, b) => a[0] - b[0]);
+    const alpha = lit >= SHARE_THRESHOLD ? 0.5 : 0.28;
+    ctx.fillStyle = `rgba(199, 182, 255, ${alpha})`;
+    const dot = Math.max(2, room.unit);
+    for (const [index, [x, y]] of shrineCells.entries()) {
+      if (index >= lit) continue;
+      const ax = sx(x) + tile / 2;
+      const ay = sy(y) - tile * 0.1;
+      const bx = sx(seal[0]) + tile / 2;
+      const by = sy(seal[1]) + tile * 0.55;
+      const steps = Math.ceil(Math.hypot(bx - ax, by - ay) / (dot * 2));
+      const drift = room.reduced ? 0 : (room.time / 120) % 2;
+      for (let k = 0; k < steps; k++) {
+        if ((k + Math.floor(drift)) % 2) continue;
+        ctx.fillRect(Math.round(ax + ((bx - ax) * k) / steps), Math.round(ay + ((by - ay) * k) / steps), dot, dot);
+      }
+    }
+  }
   ctx.restore();
+}
+
+/** How many tiles of the same kind run from (x, y) in one direction. */
+function span(room: Room, x: number, y: number, dx: number, dy: number) {
+  const t = at(room, x, y);
+  let n = 0;
+  while (at(room, x + dx * n, y + dy * n) === t) n++;
+  return n;
+}
+
+function glowAt(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, colour: string) {
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+  g.addColorStop(0, colour);
+  g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+}
+
+/** Light from the grounds landmarks: the forge furnace, library windows, observatory beams. */
+function buildingGlow(room: Room, t: Tile, w: number, h: number) {
+  const flick = room.reduced ? 0 : Math.sin(room.time / 120) * 0.06;
+  const facade = h - 2;
+  switch (t) {
+    case 'crypt': return [
+      { x: w - 1.2, y: -0.6, colour: `rgba(255, 140, 50, ${0.26 + flick})`, radius: 2 },
+      { x: 1.5, y: facade + 1.3, colour: `rgba(255, 120, 40, ${0.22 + flick})`, radius: 2.2 },
+    ];
+    case 'library': return [{ x: w / 2, y: 0.6, colour: 'rgba(255, 207, 107, 0.16)', radius: 2.6 }];
+    case 'cabin': return [{ x: w / 2, y: -1.2, colour: 'rgba(191, 168, 255, 0.22)', radius: 2.2 }];
+    case 'keep': return [{ x: w / 2, y: 1, colour: 'rgba(224, 184, 74, 0.14)', radius: 1.8 }];
+    case 'temple': return [{ x: w / 2, y: 0.4, colour: 'rgba(246, 178, 107, 0.14)', radius: 1.8 }];
+    case 'greenhouse': return [{ x: w / 2, y: 1, colour: 'rgba(249, 168, 212, 0.14)', radius: 2.2 }];
+    default: return [];
+  }
 }
 
 /** A person at the same pixel scale as the tiles, standing on a soft shadow. */
